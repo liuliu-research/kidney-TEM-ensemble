@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.DS_Store
+Thumbs.db
+mplcache_*/
+.ruff_cache/
+
+# 患者级数据与大文件：永不进仓库（PRIVACY_AUDIT.py 会再拦一道）
+big/
+logs/
+results/
+manifest.json
+split.json
+split_stats.json
+cache_report.json
+gradcam_index.json
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.npy
+*.npz
+*.tif
+*.tiff

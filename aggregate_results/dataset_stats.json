@@ -1,0 +1,97 @@
+{
+  "created": "2026-08-08T19:42:38",
+  "total_patients": 8250,
+  "total_biopsies": 8306,
+  "total_images": 60512,
+  "empty_patient_dirs": [],
+  "per_class": {
+    "IgAN": {
+      "patients": 1928,
+      "biopsies": 1931,
+      "images": 14976,
+      "images_per_patient_mean": 7.77,
+      "images_per_biopsy_min": 2,
+      "images_per_biopsy_max": 38
+    },
+    "IgAVN": {
+      "patients": 1889,
+      "biopsies": 1895,
+      "images": 11009,
+      "images_per_patient_mean": 5.83,
+      "images_per_biopsy_min": 2,
+      "images_per_biopsy_max": 28
+    },
+    "MCD": {
+      "patients": 1214,
+      "biopsies": 1214,
+      "images": 7932,
+      "images_per_patient_mean": 6.53,
+      "images_per_biopsy_min": 3,
+      "images_per_biopsy_max": 36
+    },
+    "MN": {
+      "patients": 898,
+      "biopsies": 899,
+      "images": 6919,
+      "images_per_patient_mean": 7.7,
+      "images_per_biopsy_min": 3,
+      "images_per_biopsy_max": 27
+    },
+    "MsPGN": {
+      "patients": 745,
+      "biopsies": 745,
+      "images": 6064,
+      "images_per_patient_mean": 8.14,
+      "images_per_biopsy_min": 3,
+      "images_per_biopsy_max": 31
+    },
+    "LN": {
+      "patients": 730,
+      "biopsies": 735,
+      "images": 6038,
+      "images_per_patient_mean": 8.27,
+      "images_per_biopsy_min": 2,
+      "images_per_biopsy_max": 37
+    },
+    "EPGN": {
+      "patients": 299,
+      "biopsies": 299,
+      "images": 2058,
+      "images_per_patient_mean": 6.88,
+      "images_per_biopsy_min": 2,
+      "images_per_biopsy_max": 26
+    },
+    "DKD": {
+      "patients": 164,
+      "biopsies": 165,
+      "images": 1518,
+      "images_per_patient_mean": 9.26,
+      "images_per_biopsy_min": 4,
+      "images_per_biopsy_max": 35
+    },
+    "TBMN": {
+      "patients": 146,
+      "biopsies": 146,
+      "images": 1418,
+      "images_per_patient_mean": 9.71,
+      "images_per_biopsy_min": 4,
+      "images_per_biopsy_max": 24
+    },
+    "FSGS": {
+      "patients": 141,
+      "biopsies": 142,
+      "images": 1195,
+      "images_per_patient_mean": 8.48,
+      "images_per_biopsy_min": 3,
+      "images_per_biopsy_max": 27
+    },
+    "MPGN": {
+      "patients": 135,
+      "biopsies": 135,
+      "images": 1385,
+      "images_per_patient_mean": 10.26,
+      "images_per_biopsy_min": 4,
+      "images_per_biopsy_max": 24
+    }
+  }
+}

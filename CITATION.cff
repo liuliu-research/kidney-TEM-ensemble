@@ -1,0 +1,42 @@
+cff-version: 1.2.0
+message: If you use this software or the aggregate data, please cite the accompanying article.
+title: Analysis code and de-identified aggregate results for a heterogeneous deep-learning ensemble for 11-class kidney disease diagnosis on TEM
+type: software
+license: MIT
+authors:
+  - family-names: Liu
+    given-names: Liu
+    affiliation: Central South University, Changsha, China
+  - family-names: Liu
+    given-names: Jie
+    affiliation: Central South University, Changsha, China
+  - family-names: Zhang
+    given-names: Qiqi
+    affiliation: Central South University, Changsha, China
+  - family-names: Li
+    given-names: Xiaoyang
+    affiliation: Central South University, Changsha, China
+  - family-names: Liu
+    given-names: Ziyu
+    affiliation: Central South University, Changsha, China
+  - family-names: Li
+    given-names: Jialin
+    affiliation: Central South University, Changsha, China
+  - family-names: Wang
+    given-names: Haixin
+    affiliation: Central South University, Changsha, China
+  - family-names: Wang
+    given-names: Weiyuan
+    affiliation: Central South University, Changsha, China
+  - family-names: Wang
+    given-names: Huiling
+    affiliation: Central South University, Changsha, China
+  - family-names: Wang
+    given-names: Junpu
+    affiliation: Central South University, Changsha, China
+keywords:
+  - transmission electron microscopy
+  - kidney disease
+  - deep-learning ensemble
+  - class imbalance
+  - calibration
