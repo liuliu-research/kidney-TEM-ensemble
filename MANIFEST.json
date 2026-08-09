@@ -1,0 +1,223 @@
+{
+  "repository": "kidney-TEM-ensemble",
+  "description": "Analysis code and de-identified aggregate results for the accompanying Scientific Reports submission (major revision).",
+  "status": "staged for release; model results pending",
+  "class_set": [
+    "IgAN",
+    "IgAVN",
+    "MCD",
+    "MN",
+    "MsPGN",
+    "LN",
+    "EPGN",
+    "DKD",
+    "TBMN",
+    "FSGS",
+    "MPGN"
+  ],
+  "dataset": {
+    "patients": 8250,
+    "biopsies": 8306,
+    "images": 60512,
+    "images_after_qc": 60509,
+    "split_unit": "person (archive-number prefix)",
+    "split_seed": 42,
+    "patients_train_metacal_test": [
+      5940,
+      661,
+      1649
+    ]
+  },
+  "privacy": "No electron microscopy image, model weight, prediction tensor, per-image or per-patient manifest, or archive number. Enforced by PRIVACY_AUDIT.py, which blocks by file type, file name, JSON size and content pattern.",
+  "note": "Absolute host paths in the analysis code were replaced by the environment variables SR_WORKSPACE, SR_EXP_DIR, SR_DATA_ROOT, SR_PYTHON and SR_NOTIFY_SCRIPT; no other byte of the code was changed for release, and no numeric value was altered. .gitattributes disables end-of-line conversion so the SHA-256 values below reproduce on any platform after checkout.",
+  "pending": [
+    {
+      "path": "aggregate_results/analysis.json",
+      "produced_by": "fusion_analysis.py — 主结果、逐类指标、bootstrap CI、校准、融合、McNemar、转诊"
+    },
+    {
+      "path": "aggregate_results/ablation_analysis.json",
+      "produced_by": "ablation_analysis.py — 6 个类别不平衡消融臂"
+    },
+    {
+      "path": "aggregate_results/frozen_baseline.json",
+      "produced_by": "frozen_baseline.py — 冻结特征基线"
+    },
+    {
+      "path": "aggregate_results/io_profile.json",
+      "produced_by": "profile_io.py — 数据治理层开关下的吞吐（三次重复）"
+    },
+    {
+      "path": "figures/",
+      "produced_by": "make_figures.py — 8 主图 + 6 补充图，300 dpi PNG/PDF；Grad-CAM 面板须先过 figures/README.md 的两项人工检查"
+    }
+  ],
+  "file_count": 33,
+  "files": [
+    {
+      "path": ".gitattributes",
+      "bytes": 89,
+      "sha256": "a94608e14e57cf905e8241685d1ac4578cb440596130380423fd2cf819cd1857"
+    },
+    {
+      "path": ".gitignore",
+      "bytes": 331,
+      "sha256": "76d9590bdba97e63857436aac3ce8bdd69f50d5d1928dedae4a064a8f320d327"
+    },
+    {
+      "path": ".zenodo.json",
+      "bytes": 1988,
+      "sha256": "c4e6189b68e002fc38cfb854e60788caa6e032617fc113c4e55e169ed8174b88"
+    },
+    {
+      "path": "aggregate_results/dataset_stats.json",
+      "bytes": 2324,
+      "sha256": "032f3a0ea8567c8f4e19bd259beceebaa58497c0d648c664f50164acfb0efc59"
+    },
+    {
+      "path": "aggregate_results/image_quality.json",
+      "bytes": 7388,
+      "sha256": "8ab5c17cd54c878879ca28d2847e80bdb49ecdb02f04647b67b87280e4a9b4f7"
+    },
+    {
+      "path": "aggregate_results/README.md",
+      "bytes": 2923,
+      "sha256": "2bccf22a8f6c4c980c73997b46024d8e89aa1065296e788b2667baa445125ed3"
+    },
+    {
+      "path": "CITATION.cff",
+      "bytes": 1472,
+      "sha256": "c9a077df35c968c529bfa0b4713417219f10e3bd558c4fb40f1a5831ddf84c97"
+    },
+    {
+      "path": "data_dictionary.csv",
+      "bytes": 5271,
+      "sha256": "1dc4a5d5ffda4db2976932561d886916c2f7bdab9258ec8194d22e6c6b0ed948"
+    },
+    {
+      "path": "EXTRACTION_RULES.md",
+      "bytes": 5190,
+      "sha256": "91f78a045c77fd0fae0f1657d6980dad451845966d34b8c5fc0dbb180cc968d8"
+    },
+    {
+      "path": "figures/README.md",
+      "bytes": 1388,
+      "sha256": "93fda5a2c48fff7f94f31b0c7d83dc79ecf0aba19a67bccb2a19477e8eb90596"
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 1068,
+      "sha256": "9f1abe28a25b5f6f95c58a81a647de3fa72ff6388d228c59bddd079255709989"
+    },
+    {
+      "path": "METHODS.md",
+      "bytes": 5141,
+      "sha256": "2a35a47a871a36b7a70de1e7e025961411500dd82f79806789aef113130daf77"
+    },
+    {
+      "path": "PRIVACY_AUDIT.py",
+      "bytes": 8506,
+      "sha256": "31a6915f1b76045f47c79f92b060d2acf7132ac3521a5b4153a489afd23d27f8"
+    },
+    {
+      "path": "README.md",
+      "bytes": 8652,
+      "sha256": "cd78cadd860bb1a41eb696934981cbd5c79b7647156424c7b18d2a5632eacb0b"
+    },
+    {
+      "path": "requirements.txt",
+      "bytes": 162,
+      "sha256": "bbf2547876969490da39d829296f7b23ce33f8576a629852ceb3472a5f571cf8"
+    },
+    {
+      "path": "scripts/ablation_analysis.py",
+      "bytes": 1803,
+      "sha256": "710b2b26d146d7443991cf5004aebca340336229551f8f61ac19a134ad35ba0b"
+    },
+    {
+      "path": "scripts/build_cache.py",
+      "bytes": 3181,
+      "sha256": "d7758a889c5e530790c552d9745624340eef65438b4019a5e43fffef63c48b67"
+    },
+    {
+      "path": "scripts/build_manifest.py",
+      "bytes": 2934,
+      "sha256": "d8920a481ab15ad82e8f36a50e88c71f50e476cf4563aef5b085699d445ed2e1"
+    },
+    {
+      "path": "scripts/config.py",
+      "bytes": 5343,
+      "sha256": "fde09845ca3ce3b4bcad2980651ff223ab5c78216ac796ee4b6e23f8116232aa"
+    },
+    {
+      "path": "scripts/dataset.py",
+      "bytes": 3835,
+      "sha256": "0c1311ccfa57a83163115bb6d20b731505c60ccc4e57774dc65a45e62d3fd4b0"
+    },
+    {
+      "path": "scripts/frozen_baseline.py",
+      "bytes": 2358,
+      "sha256": "f9f722acfd7bb51c0427445fa7af253b06368defcdc4c8c54271b8402b8c48a2"
+    },
+    {
+      "path": "scripts/fusion_analysis.py",
+      "bytes": 23647,
+      "sha256": "262c98c795eb77c30708de937836b8b36d2a0d23dee389c34a6c69e587cf7922"
+    },
+    {
+      "path": "scripts/gradcam.py",
+      "bytes": 4000,
+      "sha256": "3f1656e543558c67f1081878ade6661ebfb29eedb00d84db7acfe02c6d61c0c4"
+    },
+    {
+      "path": "scripts/hourly_report.sh",
+      "bytes": 3116,
+      "sha256": "b73051043bcc471db8d276728ac4d7cfd25b4c21c029816ce64a208e92cbdeaa"
+    },
+    {
+      "path": "scripts/image_quality.py",
+      "bytes": 3984,
+      "sha256": "1e09ca76cca4ba97c360cfddaa3e8e14c6d7bac9899550f4e599f0660c88057e"
+    },
+    {
+      "path": "scripts/make_split.py",
+      "bytes": 4890,
+      "sha256": "749bdf1e7f4ade11ce0f7bcfec3a7c5e4b2d44e4301199d59fdbc1324111ca23"
+    },
+    {
+      "path": "scripts/orchestrator.py",
+      "bytes": 6438,
+      "sha256": "f215b190736cfaa1878bf324bd8508265c2cc831c4d74df5e8ae42a7e4c1e921"
+    },
+    {
+      "path": "scripts/predict.py",
+      "bytes": 3735,
+      "sha256": "3821d0c90843b72c0f20de34ba0cf3dc0b39a18cfdc3b1484404b2c1ca967666"
+    },
+    {
+      "path": "scripts/profile_io.py",
+      "bytes": 5816,
+      "sha256": "2b1325bc167b9bc6c15cc49917ef041c6646baaaf3eeaf6c358085b6618ffdc5"
+    },
+    {
+      "path": "scripts/push.sh",
+      "bytes": 1157,
+      "sha256": "96b32b153e2f9afe8bca9d2441c5cfd4e65f45b57fc02f82531ea12b56bbddcb"
+    },
+    {
+      "path": "scripts/run_all.sh",
+      "bytes": 541,
+      "sha256": "814a003e755258510f5e17dcd6430dfb099cc3a65cf9eaa5a610dc265703efa2"
+    },
+    {
+      "path": "scripts/train_backbone.py",
+      "bytes": 14500,
+      "sha256": "47da7454cc4269c881a77ba5e888a5cfaaa7de3dcdebde29d1c2ecfb35a8cf36"
+    },
+    {
+      "path": "scripts/watchdog.sh",
+      "bytes": 3121,
+      "sha256": "c3771abeafa7649763a487c378d8b99a1e7685f9f725735fae2c363bff737a3e"
+    }
+  ]
+}

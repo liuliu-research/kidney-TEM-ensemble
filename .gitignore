@@ -7,14 +7,19 @@ mplcache_*/
 .ruff_cache/
 
 # 患者级数据与大文件：永不进仓库（PRIVACY_AUDIT.py 会再拦一道）
+#
+# ⚠️ 这些文件名必须**锚定到子目录**：Windows 上 git 的路径匹配大小写不敏感，
+#    写成裸 `manifest.json` 会连仓库自己的根目录 `MANIFEST.json`（文件清单与
+#    校验和，复现必需）一起挡掉——2026-08-09 已踩过这个坑。
 big/
 logs/
 results/
-manifest.json
-split.json
-split_stats.json
-cache_report.json
-gradcam_index.json
+aggregate_results/manifest.json
+aggregate_results/split.json
+aggregate_results/split_stats.json
+aggregate_results/cache_report.json
+aggregate_results/gradcam_index.json
+figures/manifest.json
 *.pt
 *.pth
 *.ckpt
