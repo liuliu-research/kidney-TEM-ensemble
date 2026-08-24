@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "repository_name": "kidney-TEM-ensemble",
+  "local_directory_name_reason": "This project-local working checkout predates the shared repository convention; the canonical public repository remains kidney-TEM-ensemble.",
+  "review_identity": "single_anonymized",
+  "artifact_access": "public",
+  "lifecycle_state": "remote_prerelease",
+  "formally_released": false,
+  "release_date": null,
+  "version": null
+}

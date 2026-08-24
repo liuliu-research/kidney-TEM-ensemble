@@ -57,8 +57,17 @@ def main() -> None:
     tag = args.model + (f"_abl_{args.ablate}" if args.ablate else "")
     out_path = C.PRED_DIR / f"{tag}__{args.subset}.npz"
     if out_path.exists():
-        print(f"[{tag}/{args.subset}] exists, skip")
-        return
+        # "文件存在即跳过"必须配合完整性校验：若上一趟被杀在 savez 中途，
+        # 截断的 npz 会被当成成功结果跳过，下游 ablation_analysis /
+        # fusion_analysis 读到 BadZipFile 才炸，且此时已难追溯是哪一趟坏的。
+        try:
+            with np.load(out_path, allow_pickle=False) as z:
+                _ = z["probs"].shape, z["labels"].shape, z["patients"].shape
+            print(f"[{tag}/{args.subset}] exists, skip", flush=True)
+            return
+        except Exception as e:  # noqa: BLE001  截断/损坏 → 重算
+            print(f"[{tag}/{args.subset}] 既有文件损坏({e!r})，重算", flush=True)
+            out_path.unlink(missing_ok=True)
 
     import timm
 
@@ -91,11 +100,15 @@ def main() -> None:
         print(f"[{tag}/{args.subset}] tta{k} {dt:.0f}s", flush=True)
 
     pts = np.array([r["pt"] for r in rows])
+    # 原子落盘，与 train_backbone 的断点写法一致。
+    # tmp 名必须以 .npz 结尾——否则 numpy 会自动补后缀，replace() 找不到文件。
+    tmp_path = out_path.with_name(out_path.stem + ".tmp.npz")
     np.savez_compressed(
-        out_path, probs=probs, labels=labels, patients=pts,
+        tmp_path, probs=probs, labels=labels, patients=pts,
         secs_per_pass=t_single, n_images=n,
         ms_per_image_single=1000 * t_single / n,
     )
+    tmp_path.replace(out_path)
     meta = {"tag": tag, "subset": args.subset, "n": int(n),
             "ms_per_image_single_pass": round(1000 * t_single / n, 3)}
     (C.OUT_DIR / f"predict_meta_{tag}__{args.subset}.json").write_text(

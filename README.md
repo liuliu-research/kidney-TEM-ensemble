@@ -1,10 +1,11 @@
-# A heterogeneous deep-learning ensemble for 11-class diagnosis of kidney disease on transmission electron microscopy
+# A heterogeneous deep-learning ensemble for assistive 11-class classification of kidney disease on transmission electron microscopy
 
 Analysis code and de-identified aggregate results for:
 
 > Liu L., Liu J., Zhang Q., Li X., Liu Z., Li J., Wang H., Wang W., Wang H., and Wang J.
-> *A heterogeneous deep-learning ensemble for 11-class diagnosis of kidney disease on
-> transmission electron microscopy.* Submitted to **Scientific Reports** (major revision).
+> *A heterogeneous deep-learning ensemble for assistive 11-class classification of
+> kidney disease on transmission electron microscopy.* Submitted to **Scientific
+> Reports** (major revision).
 
 Locked dataset: 60,512 transmission electron microscopy (TEM) images from 8,306 biopsies
 in 8,250 patients across 11 glomerular disease classes, held at a single tertiary
@@ -25,8 +26,10 @@ training, inference, fusion and analysis — ran on the authorised controlled ho
 aggregate JSON and CSV summaries are published here. The tables released are counts,
 proportions, distribution summaries, image-fidelity statistics and model metrics.
 
-Specifically, this repository contains no images, no model weights, no prediction
-tensors, no per-image or per-patient manifests, and no `PT` archive numbers. `PT` numbers
+Specifically, this repository contains no redistributable raw images, no model weights,
+no prediction tensors, no per-image or per-patient manifests, and no `PT` archive
+numbers. It also contains no step markers or per-run training or inference logs.
+Publication figures include only visually reviewed, de-identified Grad-CAM panels. `PT` numbers
 are pseudonymous patient keys, and the biopsy folder names that carry them
 (`PT######_YYYYMMDD`) additionally encode an individual-level date; both are treated as
 quasi-identifiers and are blocked from release. It contains no names, no medical record
@@ -52,26 +55,19 @@ legal approval.
 
 | Path | Contents |
 |---|---|
-| `scripts/config.py` | Single source of truth: class set, paths, split fractions, image settings, backbones, hyperparameters, ablation grid, TTA sweep. |
-| `scripts/build_manifest.py` | Enumerates the archive, parses person and biopsy units, writes the (unpublished) image manifest and the published dataset summary. |
-| `scripts/make_split.py` | Person-level stratified train / meta-calibration / test split with an explicit leakage self-test. |
-| `scripts/build_cache.py` | Full-frame isotropic downsampling to 384 px, JPEG cache, and masking of the bottom annotation strip. |
-| `scripts/image_quality.py` | SSIM / PSNR / LPIPS quantification of the downsampling and JPEG steps. |
-| `scripts/dataset.py` | Dataset and sampler definitions. |
-| `scripts/train_backbone.py` | Backbone training (focal loss, weighted sampling, MixUp/CutMix, AdamW, early stopping, epoch-level resume). |
-| `scripts/frozen_baseline.py` | Frozen ImageNet features with conventional classifiers. |
-| `scripts/predict.py` | Test-time augmentation sweep and softmax export. |
-| `scripts/fusion_analysis.py` | Soft voting, stacking, temperature scaling, referral thresholds, bootstrap CIs, calibration, diversity, McNemar, patient-level aggregation. |
-| `scripts/ablation_analysis.py` | Class-imbalance ablation arms. |
-| `scripts/gradcam.py` | Grad-CAM panels for correct and misclassified cases. |
-| `scripts/profile_io.py` | Throughput profiling with and without the data-governance layer. |
-| `scripts/orchestrator.py` | Step sequencing with marker-based resume. |
-| `scripts/run_all.sh` | Entry point; starts the orchestrator detached. |
-| `scripts/watchdog.sh` | Crash recovery, stall detection, bounded automatic retry. |
-| `scripts/hourly_report.sh` | Time-weighted progress reporting. |
-| `scripts/push.sh` | Optional notification shim; silently exits when no backend is configured. |
-| `aggregate_results/` | De-identified aggregate results. Dataset composition and image-fidelity tables are present; model results are **pending** until the GPU batch completes. |
-| `figures/` | Publication figures. **Pending** — generated once model results land. |
+| `scripts/strict_oof/run_all.sh` | **Sole main reproduction entry** for the revised analysis; starts the strict, resumable workflow. |
+| `scripts/strict_oof/workflow.py` | Frozen 94-step plan: patient-grouped Train OOF, terminal retraining, inference, nine-arm ablation, analysis and validation. |
+| `scripts/strict_oof/protocol.py` | Protocol constants and fail-closed contracts for partitions, folds, TTA depths and result lineage. |
+| `scripts/strict_oof/train.py` | Outer-fold, terminal and additional-ablation training with checkpoint validation and exact resume. |
+| `scripts/strict_oof/predict.py` | Train OOF TTA8 and terminal Meta-Cal/Test TTA16 inference with hash-bound shards. |
+| `scripts/strict_oof/analyze.py` | Train-OOF fusion fitting, independent Meta-Cal selection/calibration/referral fitting and terminal Test analysis. |
+| `scripts/strict_oof/analyze_ablation.py` | Combines the six retained arms and three additional arms under a common TTA1 evaluation schema. |
+| `scripts/strict_oof/validate.py` | Deep, fail-closed validation of protocol, artifacts, probabilities and aggregate analysis. |
+| `scripts/config.py`, `build_manifest.py`, `make_split.py`, `build_cache.py`, `image_quality.py` | Shared frozen cohort, split, preprocessing and image-fidelity dependencies used by the strict workflow. |
+| `scripts/frozen_baseline.py`, `profile_io.py`, `validate_core_results.py` | Contract-bound comparator, systems summary and compatibility validation dependencies. |
+| `scripts/run_all.sh`, `orchestrator.py`, `train_backbone.py`, `predict.py`, `fusion_analysis.py`, `ablation_analysis.py`, `gradcam.py` | **Superseded legacy workflow**, retained only for provenance and compatibility; these are not the reproduction route for the revised results. |
+| `aggregate_results/` | Completed, de-identified aggregate results used for the revision. |
+| `figures/` | Publication figure exports in PNG and PDF; all files are hash-bound to the visual-review sign-off. |
 | `EXTRACTION_RULES.md` | English reference for the Chinese-language class folders and the archive parsing, quality-control and masking rules. |
 | `METHODS.md` | Condensed frozen analysis specification. |
 | `data_dictionary.csv` | Variable definitions for the published aggregate tables. |
@@ -88,24 +84,30 @@ python -m pip install -r requirements.txt
 # On the controlled host, with the image archive mounted:
 export SR_WORKSPACE=/path/to/workspace   # archive root; see scripts/config.py
 export SR_PYTHON=/path/to/python         # interpreter used by run_all.sh
-bash scripts/run_all.sh                  # full pipeline, detached and resumable
+bash scripts/strict_oof/run_all.sh       # sole revised-analysis entry
 ```
 
-`scripts/run_all.sh` starts `scripts/orchestrator.py`, which runs the whole sequence —
-manifest, split, cache, image quality, five backbones plus the ResNet-50 baseline,
-16-fold test-time augmentation on the meta-calibration and test subsets, six ablation
-arms, frozen-feature baseline, fusion, ablation analysis, Grad-CAM and I/O profiling —
-recording a marker per step so an interrupted run resumes where it stopped. Individual
-steps can also be run directly, for example `python scripts/fusion_analysis.py`, once the
-predictions they consume exist.
+`scripts/strict_oof/run_all.sh` starts the frozen strict orchestrator. Within the original
+Train partition it creates patient-grouped five-fold out-of-fold (OOF) predictions, using
+only an inner patient-grouped validation split for early stopping. Soft-voting weights
+and the primary logistic-regression stacker are fitted on the complete Train OOF
+predictions at TTA8. The independent Meta-Cal partition then selects between the two
+pre-specified fusion candidates, fits the global temperature and selects the referral
+threshold. The held-out Test partition is used only after these choices are frozen. The
+same workflow evaluates all nine ablation arms at TTA1 and performs deep artifact and
+lineage validation before publishing its ready pointer.
+
+The parent-level `scripts/run_all.sh` and its associated training, prediction and fusion
+modules are a superseded legacy implementation. They remain inspectable for provenance,
+but running them does not reproduce the revised analysis.
 
 The pipeline requires the controlled host and the image archive; it cannot be run against
 public data. The scripts are included for inspection and audit, and the aggregate outputs
 they produce are what this repository publishes.
 
-Absolute paths from the original host have been replaced by the environment variables
-`SR_WORKSPACE`, `SR_EXP_DIR`, `SR_DATA_ROOT`, `SR_PYTHON` and `SR_NOTIFY_SCRIPT`; every
-other byte of the analysis code is as it ran. No other edit was made for release.
+The scientific scripts are synchronised from the validated active workflow. Host-only
+defaults are replaced by `SR_WORKSPACE`, `SR_EXP_DIR`, `SR_DATA_ROOT` and `SR_PYTHON`;
+the preparation gate rejects private absolute paths and does not alter numeric settings.
 
 Random seed 42 is fixed throughout: split construction, sampler, augmentation and
 bootstrap resampling. Software versions are pinned in `requirements.txt`; the analysis
@@ -124,13 +126,13 @@ matplotlib 3.10.8, on one NVIDIA GB10 (121 GB, CUDA 13.0).
 | Train / meta-calibration / test | 5,940 / 661 / 1,649 patients |
 | Class imbalance | 12.5:1 at image level, 14.3:1 at patient level (IgAN vs FSGS) |
 | Persons with more than one biopsy | 55, of which 39 carry more than one class label |
-| Downsampling fidelity (mean) | SSIM 0.644, PSNR 26.5 dB |
-| JPEG cache fidelity (mean) | SSIM 0.986, PSNR 39.4 dB, LPIPS 0.0027 |
+| Image-fidelity audit | Stage-wise resize-only, resize-plus-mask and actual-cache results are in `aggregate_results/image_quality.json` |
+| Deliberately masked area | Bottom 28/384 rows (7.29%); a shortcut-risk mitigation, not proof that all metadata are absent |
 
 Model results — per-class metrics, bootstrap confidence intervals, calibration, fusion,
-ablations, referral analysis and Grad-CAM panels — are **not yet in this repository**.
-They are written by the pipeline into `aggregate_results/` and `figures/`; see
-`aggregate_results/README.md` for what lands there and when.
+ablations, referral analysis and Grad-CAM panels — are provided in
+`aggregate_results/` and `figures/`. Only aggregate outputs on the explicit release
+allowlist are included.
 
 ## Licence
 

@@ -1,0 +1,16 @@
+{
+  "feature_dim": 1024,
+  "extract_seconds": 847.0,
+  "logreg": {
+    "accuracy": 0.33771277474797556,
+    "macro_f1": 0.21012752624587847,
+    "auc_ovr_macro": 0.6934850532030192,
+    "fit_seconds": 258.8
+  },
+  "random_forest": {
+    "accuracy": 0.3111056023797719,
+    "macro_f1": 0.11749726468507943,
+    "auc_ovr_macro": 0.6622220295662924,
+    "fit_seconds": 35.1
+  }
+}

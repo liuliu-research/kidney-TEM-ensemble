@@ -3,6 +3,7 @@
 各模式训练 EfficientNet-B4 若干步，重复 3 次测：
   · 每步耗时（数据等待 vs 计算分解）
   · GPU 利用率（1 Hz 采样）
+  · CPU 利用率（1 Hz 采样，全机口径；R5.9 逐项点名要求）
   · torch.profiler 窗口（30 步）导出算子级摘要
 ON  = JPEG-384 RAM 缓存 (num_workers=0)
 OFF = 原始 TIFF 磁盘直读 + 在线 resize (num_workers=8)
@@ -11,6 +12,7 @@ OFF = 原始 TIFF 磁盘直读 + 在线 resize (num_workers=8)
 from __future__ import annotations
 
 import json
+import threading
 import time
 
 import numpy as np
@@ -51,11 +53,65 @@ class TiffDataset(Dataset):
         return torch.from_numpy(x.transpose(2, 0, 1)), self.idx[r["cls"]]
 
 
+class CpuMonitor:
+    """CPU 利用率 1 Hz 采样（全机口径）.
+
+    R5.9 逐项列出的六项里 CPU 利用率原先未测。psutil 缺失时不抛错，
+    转而如实记录 available=False——绝不能让"没测到"变成编出来的数字。
+    """
+
+    def __init__(self, interval: float = 1.0):
+        self.interval = interval
+        self._samples: list[float] = []
+        self._stop = threading.Event()
+        self._t: threading.Thread | None = None
+        try:
+            import psutil
+            self._ps = psutil
+        except ImportError:
+            self._ps = None
+
+    def _run(self) -> None:
+        self._ps.cpu_percent(None)        # 首次调用返回无意义值，丢弃
+        while not self._stop.is_set():
+            self._samples.append(float(self._ps.cpu_percent(self.interval)))
+
+    def start(self) -> None:
+        if self._ps is None:
+            return
+        self._stop.clear()
+        self._t = threading.Thread(target=self._run, daemon=True)
+        self._t.start()
+
+    def stop(self) -> dict:
+        if self._ps is None:
+            return {"available": False,
+                    "note": "psutil not installed; CPU utilisation not "
+                            "sampled (see RUNBOOK)"}
+        self._stop.set()
+        if self._t is not None:
+            self._t.join(timeout=self.interval * 2 + 1)
+        s = self._samples
+        if not s:
+            return {"available": False, "note": "no CPU samples collected"}
+        return {
+            "available": True,
+            "n_samples": len(s),
+            "mean": float(np.mean(s)),
+            "median": float(np.median(s)),
+            "p10": float(np.percentile(s, 10)),
+            "p90": float(np.percentile(s, 90)),
+            "n_logical_cores": int(self._ps.cpu_count(logical=True)),
+        }
+
+
 def measure(loader, model, opt, steps: int) -> dict:
     it = iter(loader)
     data_t, step_t = [], []
     mon = GpuMonitor(interval=1.0)
+    cpu_mon = CpuMonitor(interval=1.0)
     mon.start()
+    cpu_mon.start()
     torch.cuda.synchronize()
     for s in range(steps):
         t0 = time.time()
@@ -76,6 +132,7 @@ def measure(loader, model, opt, steps: int) -> dict:
         data_t.append(t1 - t0)
         step_t.append(time.time() - t0)
     g = mon.stop()
+    c = cpu_mon.stop()
     return {
         "steps": steps,
         "mean_step_s": float(np.mean(step_t)),
@@ -83,6 +140,7 @@ def measure(loader, model, opt, steps: int) -> dict:
         "data_wait_fraction": float(np.sum(data_t) / np.sum(step_t)),
         "imgs_per_s": BATCH / float(np.mean(step_t)),
         "gpu_util": g,
+        "cpu_util": c,
     }
 
 
@@ -114,6 +172,8 @@ def main() -> None:
                  for k, v in r.items() if k != "gpu_util"}), flush=True)
         n_train = len(ds)
         mean_step = float(np.mean([r["mean_step_s"] for r in reps]))
+        cpu_means = [r["cpu_util"]["mean"] for r in reps
+                     if r["cpu_util"].get("available")]
         results["modes"][mode] = {
             "repeats": reps,
             "mean_step_s": mean_step,
@@ -121,6 +181,8 @@ def main() -> None:
                 mean_step * (n_train // BATCH) / 60, 1),
             "gpu_util_mean": float(np.mean(
                 [r["gpu_util"]["mean"] for r in reps])),
+            "cpu_util_mean": (float(np.mean(cpu_means))
+                              if cpu_means else None),
         }
         # profiler 窗口（各模式一次，导出摘要文本）
         from torch.profiler import profile, ProfilerActivity

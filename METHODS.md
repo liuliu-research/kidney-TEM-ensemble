@@ -24,18 +24,31 @@ Person-level stratified three-way split at seed 42: 72 % training, 8 % meta-cali
 20 % test — 5,940 / 661 / 1,649 people. A leakage self-test asserts that the three person
 sets are pairwise disjoint before the split is written.
 
-The meta-calibration subset is the only data used to set soft-voting weights, to fit the
-stacking meta-learner, to fit the temperature, and to choose the referral threshold. The
-test subset is touched once, at final evaluation.
+The original Train partition is further divided into five patient-grouped outer folds.
+Within each outer-training portion, a patient-grouped inner validation split is used for
+early stopping and epoch selection; the outer-heldout fold is used only to generate that
+fold's out-of-fold (OOF) predictions. The five outer folds therefore provide complete
+Train OOF predictions without using the independent Meta-Cal or Test partitions for
+backbone training or epoch selection.
+
+Soft-voting weights and the primary logistic-regression stacking meta-learner are fitted
+on the complete Train OOF predictions at TTA8. The independent Meta-Cal partition is then
+used to select between the two pre-specified candidates (`voting_tta8` and
+`stack_lr_tta8`), fit the selected candidate's global temperature, and select the
+referral threshold. These choices are frozen before the held-out Test partition is used
+once for terminal evaluation.
 
 ## Image preprocessing
 
-Whole frames are downsampled isotropically to a 384-pixel short side with Lanczos
-resampling; no cropping is applied, so no field of view is discarded. The bottom
-28 pixels of every frame — the microscope annotation strip — are masked to black before
-caching, which removes the printed magnification and scale text as a possible shortcut.
-Frames are cached as quality-92 JPEG. Downsampling and JPEG fidelity are quantified
-against the originals with SSIM, PSNR and LPIPS on thirty sampled images per class.
+All source rows and columns participate in Lanczos resampling to 384 x 384; no spatial
+crop precedes resizing. The bottom 28 rows (7.29% of the resized image area) are then
+masked to black before quality-92 JPEG caching. This fixed mask reduces exposure to
+commonly located footer metadata, but it does not prove that scale text or measurement
+marks outside the strip are absent. Stage-wise fidelity is quantified on the same thirty
+source TIFF images per class after resize only, after resize plus masking, and after
+decoding the actual cached JPEG. RGB SSIM, PSNR and LPIPS are reported for all three
+cumulative comparisons, together with the incremental JPEG-only comparison; regenerated
+JPEG bytes must match the cache used by the dataset.
 Files that fail to decode are excluded and counted.
 
 ## Models and training
@@ -48,21 +61,38 @@ Training uses focal loss with gamma 1.5 and label smoothing 0.05, class-weighted
 sampling, MixUp (alpha 0.2) and CutMix (alpha 1.0) applied with probability 0.5, AdamW at
 base learning rate 1e-4 with a 0.1 multiplier on backbone parameters, weight decay 1e-4,
 a 10 % warm-up fraction, bfloat16 mixed precision, batch size 32 (40 for EfficientNet-B4),
-at most 40 epochs, and early stopping on meta-calibration macro-F1 with patience 8.
-Checkpoints are written every epoch so an interrupted run resumes at the epoch boundary
-rather than from scratch.
+and at most 40 outer-fold epochs. Outer-fold early stopping uses only the inner-validation
+macro-F1 with patience 8. For each backbone and ResNet-50, the terminal epoch count is the
+median of its five outer-fold best epochs; the model is then retrained on the complete
+Train partition for that fixed count, without early stopping. The scheduler retains its
+40-epoch horizon. In total, the strict workflow contains 30 outer-fold and six terminal
+training runs. Checkpoints are written every epoch so an interrupted run resumes at the
+epoch boundary rather than from scratch.
 
-Six class-imbalance ablation arms are trained on Swin-B under a common 30-epoch budget:
-plain cross-entropy; plus weighted sampling; focal only; focal with sampling; the full
-recipe; and the full recipe with class-balanced re-weighting.
+The ablation analysis contains nine arms under a common 30-epoch budget: plain
+cross-entropy; cross-entropy plus weighted sampling; focal loss only; focal loss plus
+sampling; the full recipe; the full recipe plus class-balanced re-weighting;
+class-balanced re-weighting only; MixUp only; and CutMix only. The original six
+contract-bound arms and three additional isolated runs use the same selected ablation
+backbone and are all evaluated at TTA1. They are descriptive single-run contrasts, not
+paired or across-seed estimates of component effects. The three additional arms retain
+the original ablation convention of Train fitting with Meta-Cal monitoring; they do not
+enter the main fusion-candidate selection.
 
 ## Inference, fusion and calibration
 
-Deterministic test-time augmentation is swept at 1, 2, 4, 8 and 16 folds. Fusion
-compares soft voting with meta-calibration-derived weights against stacked
-generalisation with a logistic-regression meta-learner, with multilayer-perceptron and
-gradient-boosted-tree meta-learners as non-linear controls. Temperature scaling is fitted
-on the meta-calibration subset, globally and per class.
+Outer-fold models generate complete Train OOF predictions at TTA8. Terminal models,
+trained on the complete Train partition at their fixed epoch counts, generate Meta-Cal
+and Test predictions for deterministic TTA depths 1, 2, 4, 8 and 16. The pre-specified
+primary candidates are soft voting and logistic-regression stacking at TTA8; both the
+voting weights and logistic-regression coefficients are fitted on complete Train OOF
+predictions. Their independent Meta-Cal macro-F1 selects the final candidate. A single
+global temperature is fitted to the selected candidate's independent Meta-Cal
+probabilities, and the referral threshold is selected on those temperature-scaled
+Meta-Cal probabilities. Multilayer-perceptron and gradient-boosted-tree stackers are
+fitted on Train OOF TTA1 features and reported only as post-hoc descriptive sensitivity
+analyses. Per-class temperature scaling is likewise a sensitivity analysis; the primary
+system uses the global temperature.
 
 ## Evaluation
 
@@ -84,6 +114,6 @@ PyTorch profiler.
 The referral analysis is a retrospective triage simulation on archival images; it is not a
 prospective clinical evaluation and does not establish clinical utility. All images come
 from one centre and one electron-microscopy service, so no external validation is claimed.
-Grad-CAM panels are qualitative: the printed annotation strip is masked, but in-image
-measurement marks drawn during routine reporting cannot be removed, and panels must be
+Grad-CAM panels are qualitative: the bottom strip is masked, but scale text or in-image
+measurement marks can remain outside it, and panels must be
 inspected for activation tracking those marks before any interpretive claim is made.

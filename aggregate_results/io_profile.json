@@ -1,0 +1,162 @@
+{
+  "batch": 40,
+  "steps_per_repeat": 150,
+  "repeats": 3,
+  "modes": {
+    "governance_on": {
+      "repeats": [
+        {
+          "steps": 150,
+          "mean_step_s": 0.6892379315694174,
+          "mean_data_wait_s": 0.0776116418838501,
+          "data_wait_fraction": 0.11260500667327733,
+          "imgs_per_s": 58.035111197259106,
+          "gpu_util": {
+            "mean": 82.53,
+            "median": 96.0,
+            "p10": 31.8,
+            "p90": 96.0,
+            "n": 100
+          },
+          "cpu_util": {
+            "available": true,
+            "n_samples": 104,
+            "mean": 14.440384615384614,
+            "median": 13.6,
+            "p10": 12.6,
+            "p90": 18.17,
+            "n_logical_cores": 20
+          }
+        },
+        {
+          "steps": 150,
+          "mean_step_s": 0.682776845296224,
+          "mean_data_wait_s": 0.07838616371154786,
+          "data_wait_fraction": 0.11480495311398539,
+          "imgs_per_s": 58.58429481838378,
+          "gpu_util": {
+            "mean": 84.88888888888889,
+            "median": 96.0,
+            "p10": 38.8,
+            "p90": 96.0,
+            "n": 99
+          },
+          "cpu_util": {
+            "available": true,
+            "n_samples": 103,
+            "mean": 14.491262135922328,
+            "median": 13.7,
+            "p10": 12.719999999999999,
+            "p90": 18.439999999999998,
+            "n_logical_cores": 20
+          }
+        },
+        {
+          "steps": 150,
+          "mean_step_s": 0.6817376804351807,
+          "mean_data_wait_s": 0.0768523915608724,
+          "data_wait_fraction": 0.11273015085775281,
+          "imgs_per_s": 58.67359418136663,
+          "gpu_util": {
+            "mean": 84.3030303030303,
+            "median": 96.0,
+            "p10": 47.400000000000006,
+            "p90": 96.0,
+            "n": 99
+          },
+          "cpu_util": {
+            "available": true,
+            "n_samples": 103,
+            "mean": 13.275728155339806,
+            "median": 13.4,
+            "p10": 8.3,
+            "p90": 18.18,
+            "n_logical_cores": 20
+          }
+        }
+      ],
+      "mean_step_s": 0.6845841524336073,
+      "extrapolated_epoch_minutes": 12.4,
+      "gpu_util_mean": 83.9073063973064,
+      "cpu_util_mean": 14.06912496888225
+    },
+    "governance_off": {
+      "repeats": [
+        {
+          "steps": 150,
+          "mean_step_s": 0.6515553824106852,
+          "mean_data_wait_s": 0.009931956926981608,
+          "data_wait_fraction": 0.015243457724552024,
+          "imgs_per_s": 61.39155792406208,
+          "gpu_util": {
+            "mean": 89.61702127659575,
+            "median": 96.0,
+            "p10": 74.3,
+            "p90": 96.0,
+            "n": 94
+          },
+          "cpu_util": {
+            "available": true,
+            "n_samples": 98,
+            "mean": 22.317346938775508,
+            "median": 21.35,
+            "p10": 18.57,
+            "p90": 26.16,
+            "n_logical_cores": 20
+          }
+        },
+        {
+          "steps": 150,
+          "mean_step_s": 0.6526451492309571,
+          "mean_data_wait_s": 0.010443596839904786,
+          "data_wait_fraction": 0.01600195274907195,
+          "imgs_per_s": 61.28904818665075,
+          "gpu_util": {
+            "mean": 89.14893617021276,
+            "median": 96.0,
+            "p10": 74.0,
+            "p90": 96.0,
+            "n": 94
+          },
+          "cpu_util": {
+            "available": true,
+            "n_samples": 98,
+            "mean": 22.03469387755102,
+            "median": 20.45,
+            "p10": 18.8,
+            "p90": 25.53,
+            "n_logical_cores": 20
+          }
+        },
+        {
+          "steps": 150,
+          "mean_step_s": 0.659042272567749,
+          "mean_data_wait_s": 0.010530894597371419,
+          "data_wait_fraction": 0.015979088194663343,
+          "imgs_per_s": 60.694133995612596,
+          "gpu_util": {
+            "mean": 90.96842105263158,
+            "median": 96.0,
+            "p10": 73.0,
+            "p90": 96.0,
+            "n": 95
+          },
+          "cpu_util": {
+            "available": true,
+            "n_samples": 99,
+            "mean": 25.295959595959594,
+            "median": 25.5,
+            "p10": 20.48,
+            "p90": 27.64,
+            "n_logical_cores": 20
+          }
+        }
+      ],
+      "mean_step_s": 0.6544142680697971,
+      "extrapolated_epoch_minutes": 11.9,
+      "gpu_util_mean": 89.91145949981336,
+      "cpu_util_mean": 23.216000137428708
+    }
+  },
+  "speedup_step": 0.96
+}

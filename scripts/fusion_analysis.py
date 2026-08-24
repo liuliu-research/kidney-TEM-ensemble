@@ -17,6 +17,7 @@ from itertools import combinations
 import numpy as np
 from scipy.optimize import minimize_scalar
 from scipy.stats import chi2
+from sklearn.base import clone
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import (
@@ -25,7 +26,9 @@ from sklearn.metrics import (
     log_loss, matthews_corrcoef, precision_score, recall_score,
     roc_auc_score,
 )
+from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.neural_network import MLPClassifier
+from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 import config as C
@@ -33,6 +36,11 @@ import config as C
 MODELS = list(C.BACKBONES)          # 5 骨干
 BOOT_N = 1000
 RNG = np.random.default_rng(C.SEED)
+OOF_SELECTION_CANDIDATES = ("voting_tta8", "stack_lr_tta8")
+POST_HOC_TERMINAL_TEST_SENSITIVITY = (
+    "stack_mlp_tta1",
+    "stack_gbdt_tta1",
+)
 
 
 # ---------------- 载入 ----------------
@@ -45,6 +53,239 @@ def load_preds(tag: str, subset: str):
 def tta_mean(probs: np.ndarray, n: int) -> np.ndarray:
     p = probs[:n].mean(0)
     return p / p.sum(1, keepdims=True)      # float16 存储误差归一化
+
+
+def patient_group_ids(patient_or_biopsy_ids: np.ndarray) -> np.ndarray:
+    """从活检编号中提取患者分组键。
+
+    预测文件中的活检编号以患者代码为第一个下划线前缀；
+    重复活检必须始终位于同一折。
+    """
+    return np.asarray([str(value).split("_", 1)[0]
+                       for value in patient_or_biopsy_ids])
+
+
+def patient_grouped_oof_splits(
+        y: np.ndarray,
+        patient_or_biopsy_ids: np.ndarray,
+        n_splits: int = C.FUSION_OOF_FOLDS,
+        seed: int = C.SEED,
+) -> tuple[np.ndarray, list[tuple[np.ndarray, np.ndarray]], list[dict]]:
+    """生成固定 seed 的分层患者分组 OOF 折，并对泄漏失败关闭。"""
+    y = np.asarray(y)
+    groups = patient_group_ids(np.asarray(patient_or_biopsy_ids))
+    if y.ndim != 1 or len(y) != len(groups):
+        raise ValueError("y 与 patient_or_biopsy_ids 必须是等长一维数组")
+    if n_splits < 2:
+        raise ValueError("OOF 折数必须至少为 2")
+    if len(np.unique(groups)) < n_splits:
+        raise ValueError("患者数少于 OOF 折数")
+
+    splitter = StratifiedGroupKFold(
+        n_splits=n_splits,
+        shuffle=True,
+        random_state=seed,
+    )
+    splits: list[tuple[np.ndarray, np.ndarray]] = []
+    records: list[dict] = []
+    assignment = np.full(len(y), -1, dtype=np.int16)
+    all_classes = set(np.unique(y).tolist())
+    for fold, (train_idx, valid_idx) in enumerate(
+            splitter.split(np.zeros(len(y)), y, groups)):
+        train_groups = set(groups[train_idx].tolist())
+        valid_groups = set(groups[valid_idx].tolist())
+        if train_groups & valid_groups:
+            raise RuntimeError(f"OOF 第 {fold} 折存在患者泄漏")
+        if np.any(assignment[valid_idx] != -1):
+            raise RuntimeError(f"OOF 第 {fold} 折重复覆盖了验证样本")
+        train_classes = set(np.unique(y[train_idx]).tolist())
+        if train_classes != all_classes:
+            missing = sorted(all_classes - train_classes)
+            raise RuntimeError(f"OOF 第 {fold} 折训练集缺少类别: {missing}")
+        assignment[valid_idx] = fold
+        splits.append((train_idx, valid_idx))
+        records.append({
+            "fold": int(fold),
+            "n_train_images": int(len(train_idx)),
+            "n_validation_images": int(len(valid_idx)),
+            "n_train_patient_groups": int(len(train_groups)),
+            "n_validation_patient_groups": int(len(valid_groups)),
+            "patient_group_overlap": 0,
+        })
+    if np.any(assignment < 0):
+        raise RuntimeError("OOF 折未覆盖全部 meta-cal 样本")
+    return groups, splits, records
+
+
+def _aligned_predict_proba(model, x: np.ndarray,
+                           n_classes: int) -> np.ndarray:
+    """将 sklearn 模型概率列对齐到固定类别编号。"""
+    raw = np.asarray(model.predict_proba(x), dtype=np.float64)
+    classes = np.asarray(model.classes_, dtype=int)
+    if np.any(classes < 0) or np.any(classes >= n_classes):
+        raise RuntimeError("元学习器返回了越界类别编号")
+    probs = np.zeros((len(x), n_classes), dtype=np.float64)
+    probs[:, classes] = raw
+    row_sums = probs.sum(axis=1, keepdims=True)
+    if np.any(~np.isfinite(row_sums)) or np.any(row_sums <= 0):
+        raise RuntimeError("元学习器返回了非法概率")
+    return probs / row_sums
+
+
+def grouped_oof_predict_proba(
+        x: np.ndarray,
+        y: np.ndarray,
+        splits: list[tuple[np.ndarray, np.ndarray]],
+        estimator,
+        n_classes: int,
+) -> np.ndarray:
+    """在每折内独立拟合标准化与元学习器，返回 OOF 概率。"""
+    x = np.asarray(x)
+    y = np.asarray(y)
+    probs = np.full((len(y), n_classes), np.nan, dtype=np.float64)
+    for train_idx, valid_idx in splits:
+        model = make_pipeline(StandardScaler(), clone(estimator))
+        model.fit(x[train_idx], y[train_idx])
+        probs[valid_idx] = _aligned_predict_proba(
+            model, x[valid_idx], n_classes)
+    if np.any(~np.isfinite(probs)):
+        raise RuntimeError("OOF 概率未被完整填充")
+    return probs
+
+
+def _macro_f1_weights(
+        y: np.ndarray,
+        probs_by_model: dict[str, np.ndarray],
+        model_names: list[str],
+        indices: np.ndarray | None = None,
+) -> np.ndarray:
+    """仅使用指定样本的标签估计软投票权重。"""
+    if indices is None:
+        indices = np.arange(len(y))
+    scores = np.asarray([
+        f1_score(
+            y[indices],
+            probs_by_model[name][indices].argmax(1),
+            labels=list(range(probs_by_model[name].shape[1])),
+            average="macro",
+            zero_division=0,
+        )
+        for name in model_names
+    ], dtype=np.float64)
+    if not np.all(np.isfinite(scores)) or scores.sum() <= 0:
+        return np.full(len(model_names), 1.0 / len(model_names))
+    return scores / scores.sum()
+
+
+def _weighted_vote(
+        probs_by_model: dict[str, np.ndarray],
+        model_names: list[str],
+        weights: np.ndarray,
+        indices: np.ndarray | None = None,
+) -> np.ndarray:
+    """按给定权重合并模型概率。"""
+    if indices is None:
+        indices = np.arange(len(next(iter(probs_by_model.values()))))
+    combined = sum(
+        weight * probs_by_model[name][indices]
+        for weight, name in zip(weights, model_names)
+    )
+    return combined / combined.sum(axis=1, keepdims=True)
+
+
+def grouped_oof_weighted_vote(
+        weight_fit_probs: dict[str, np.ndarray],
+        vote_probs: dict[str, np.ndarray],
+        y: np.ndarray,
+        splits: list[tuple[np.ndarray, np.ndarray]],
+        model_names: list[str],
+) -> tuple[np.ndarray, list[dict[str, float]]]:
+    """每折仅用训练患者估计权重，再预测该折留出患者。"""
+    n_classes = next(iter(vote_probs.values())).shape[1]
+    oof = np.full((len(y), n_classes), np.nan, dtype=np.float64)
+    fold_weights: list[dict[str, float]] = []
+    for train_idx, valid_idx in splits:
+        weights = _macro_f1_weights(
+            y, weight_fit_probs, model_names, indices=train_idx)
+        oof[valid_idx] = _weighted_vote(
+            vote_probs, model_names, weights, indices=valid_idx)
+        fold_weights.append({
+            name: float(weight)
+            for name, weight in zip(model_names, weights)
+        })
+    if np.any(~np.isfinite(oof)):
+        raise RuntimeError("加权投票 OOF 概率未被完整填充")
+    return oof, fold_weights
+
+
+def select_candidate_from_oof(
+        y: np.ndarray,
+        candidate_oof_probs: dict[str, np.ndarray],
+) -> tuple[str, dict[str, dict[str, float | str]]]:
+    """仅根据 meta-cal OOF macro-F1 选择最终融合候选。"""
+    if not candidate_oof_probs:
+        raise ValueError("至少需要一个融合候选")
+    scores: dict[str, dict[str, float | str]] = {}
+    for name, probs in candidate_oof_probs.items():
+        scores[name] = {
+            "macro_f1": float(f1_score(
+                y,
+                probs.argmax(1),
+                labels=list(range(probs.shape[1])),
+                average="macro",
+                zero_division=0,
+            )),
+            "estimate": "patient_grouped_oof",
+        }
+    selected = max(scores, key=lambda name: scores[name]["macro_f1"])
+    return selected, scores
+
+
+def fusion_selection_role_metadata() -> dict:
+    """明示区分 OOF 选型候选与终末 test 事后敏感性对照。"""
+    roles = {
+        name: {
+            "selection_role": "patient_grouped_oof_selection_candidate",
+            "used_for_fusion_selection": True,
+            "has_grouped_oof_selection_score": True,
+        }
+        for name in OOF_SELECTION_CANDIDATES
+    }
+    roles.update({
+        name: {
+            "selection_role": "post_hoc_terminal_test_sensitivity",
+            "used_for_fusion_selection": False,
+            "has_grouped_oof_selection_score": False,
+            "fit_partition": "full_metacal",
+            "evaluation_partition": "terminal_test",
+        }
+        for name in POST_HOC_TERMINAL_TEST_SENSITIVITY
+    })
+    return {
+        "oof_selection_candidates": list(OOF_SELECTION_CANDIDATES),
+        "post_hoc_terminal_test_sensitivity": list(
+            POST_HOC_TERMINAL_TEST_SENSITIVITY),
+        "candidate_roles": roles,
+    }
+
+
+def select_best_single_from_metacal(
+        y: np.ndarray,
+        metacal_probs: dict[str, np.ndarray],
+) -> tuple[str, dict[str, float]]:
+    """仅用 meta-cal macro-F1 预选 McNemar/bootstrap 的单骨干对照。"""
+    scores = {
+        name: float(f1_score(
+            y,
+            probs.argmax(1),
+            labels=list(range(probs.shape[1])),
+            average="macro",
+            zero_division=0,
+        ))
+        for name, probs in metacal_probs.items()
+    }
+    selected = max(scores, key=scores.get)
+    return selected, scores
 
 
 # ---------------- 指标 ----------------
@@ -91,6 +332,26 @@ def full_metrics(y: np.ndarray, p: np.ndarray) -> dict:
     return out
 
 
+def macro_specificity(y, p) -> float:
+    """宏平均特异度（一对多）——供 bootstrap CI 复用，口径同 full_metrics."""
+    yp = p.argmax(1)
+    spec = []
+    for c in range(p.shape[1]):
+        yb = y == c
+        pb = yp == c
+        tn = int((~yb & ~pb).sum())
+        fp = int((~yb & pb).sum())
+        spec.append(tn / max(tn + fp, 1))
+    return float(np.mean(spec))
+
+
+def macro_ap(y, p) -> float:
+    """宏平均 average precision（PR-AUC）——供 bootstrap CI 复用."""
+    return float(np.mean([
+        average_precision_score((y == c).astype(int), p[:, c])
+        for c in range(p.shape[1])]))
+
+
 def patient_bootstrap_ci(y, p, pts, metric_fns: dict, n_boot=BOOT_N):
     """患者级 bootstrap 95% CI（按人聚类：PT 前缀，重复活检并入同一人）."""
     persons = np.array([str(x).split("_")[0] for x in pts])
@@ -116,6 +377,37 @@ def patient_bootstrap_ci(y, p, pts, metric_fns: dict, n_boot=BOOT_N):
             for k, v in stats.items()}
 
 
+def paired_bootstrap_delta(y, p_a, p_b, pts, metric_fns: dict,
+                           n_boot=BOOT_N):
+    """配对患者级 bootstrap：同一轮重采样同时评估两套系统，返回 Δ = A − B.
+
+    回应 R5.7 / R5.2——审稿人要的是"这一具体增益是否可靠"，只给最终系统
+    自身的 CI 不构成回答；配对重采样消除了两次独立 bootstrap 之间的
+    重采样噪声，Δ 的百分位区间可直接判读是否跨零。
+    """
+    persons = np.array([str(x).split("_")[0] for x in pts])
+    uniq = np.unique(persons)
+    idx_by_pt = {u: np.where(persons == u)[0] for u in uniq}
+    stats = {k: [] for k in metric_fns}
+    for _ in range(n_boot):
+        sel = RNG.choice(uniq, len(uniq), replace=True)
+        idx = np.concatenate([idx_by_pt[u] for u in sel])
+        yy, pa, pb = y[idx], p_a[idx], p_b[idx]
+        for k, fn in metric_fns.items():
+            try:
+                stats[k].append(float(fn(yy, pa)) - float(fn(yy, pb)))
+            except ValueError:
+                continue
+    out = {}
+    for k, v in stats.items():
+        lo = float(np.percentile(v, 2.5))
+        hi = float(np.percentile(v, 97.5))
+        out[k] = {"mean": float(np.mean(v)), "ci_lo": lo, "ci_hi": hi,
+                  "sd": float(np.std(v)), "n_boot": len(v),
+                  "excludes_zero": bool(lo > 0 or hi < 0)}
+    return out
+
+
 # ---------------- 校准 ----------------
 def fit_temperature(logp: np.ndarray, y: np.ndarray) -> float:
     def nll(t):
@@ -136,6 +428,44 @@ def apply_temperature(probs: np.ndarray, t: float) -> np.ndarray:
     return p / p.sum(1, keepdims=True)
 
 
+def fit_predicted_class_temperatures(
+        probs: np.ndarray,
+        y: np.ndarray,
+        global_temperature: float,
+        n_classes: int,
+        min_samples: int = 50,
+) -> tuple[dict[int, float], dict[int, int], list[int]]:
+    """按预测类别拟合逐类温度，并对小样本组回退全局温度。
+
+    拟合和应用必须使用同一个、推理时可获得的分组变量。这里二者都使用
+    argmax 预测类别；不得用真实类别拟合后再按预测类别应用。
+    """
+    probs = np.asarray(probs, dtype=np.float64)
+    y = np.asarray(y)
+    if probs.ndim != 2 or len(probs) != len(y):
+        raise ValueError("probs 与 y 必须具有相同样本数")
+    if probs.shape[1] != n_classes:
+        raise ValueError("probs 的类别数与 n_classes 不一致")
+    if min_samples < 1:
+        raise ValueError("min_samples 必须为正整数")
+
+    predicted = probs.argmax(1)
+    logp = np.log(np.clip(probs, 1e-12, 1))
+    temperatures: dict[int, float] = {}
+    counts: dict[int, int] = {}
+    fallback_classes: list[int] = []
+    for class_index in range(n_classes):
+        mask = predicted == class_index
+        count = int(mask.sum())
+        counts[class_index] = count
+        if count >= min_samples:
+            temperatures[class_index] = fit_temperature(logp[mask], y[mask])
+        else:
+            temperatures[class_index] = float(global_temperature)
+            fallback_classes.append(class_index)
+    return temperatures, counts, fallback_classes
+
+
 def ece(y: np.ndarray, p: np.ndarray, bins: int = 15) -> float:
     conf = p.max(1)
     correct = (p.argmax(1) == y).astype(float)
@@ -148,12 +478,41 @@ def ece(y: np.ndarray, p: np.ndarray, bins: int = 15) -> float:
     return float(e)
 
 
+def binary_probability_ece(
+        target: np.ndarray,
+        probability: np.ndarray,
+        bins: int = 15,
+) -> float:
+    """计算一个类别的一对其余 expected calibration error。"""
+    target = np.asarray(target, dtype=np.float64)
+    probability = np.asarray(probability, dtype=np.float64)
+    if target.shape != probability.shape or target.ndim != 1:
+        raise ValueError("target 与 probability 必须是等长一维数组")
+    edges = np.linspace(0, 1, bins + 1)
+    score = 0.0
+    for index in range(bins):
+        if index == 0:
+            mask = (probability >= edges[index]) & (
+                probability <= edges[index + 1])
+        else:
+            mask = (probability > edges[index]) & (
+                probability <= edges[index + 1])
+        if mask.any():
+            score += mask.mean() * abs(
+                target[mask].mean() - probability[mask].mean())
+    return float(score)
+
+
 def classwise_ece(y, p, bins=15) -> dict:
-    out = {}
-    for c in range(p.shape[1]):
-        m = y == c
-        if m.sum() >= 10:
-            out[C.CLASSES[c]] = ece(y[m], p[m], bins)
+    """计算标准 one-vs-rest 逐类 ECE 及其不加权均值。"""
+    out = {
+        C.CLASSES[class_index]: binary_probability_ece(
+            (y == class_index).astype(float),
+            p[:, class_index],
+            bins,
+        )
+        for class_index in range(p.shape[1])
+    }
     out["balanced_ece"] = float(np.mean(list(out.values())))
     return out
 
@@ -250,21 +609,25 @@ def main() -> None:  # noqa: PLR0915
                            "ms_per_image": timing[m]}
 
     # ---------- 软投票（Meta-Cal 定权：macro-F1 归一） ----------
-    w = np.array([f1_score(y_mc, tta_mean(mc[m][0], 1).argmax(1),
-                           average="macro") for m in MODELS])
-    w = w / w.sum()
+    mc_tta1 = {m: tta_mean(mc[m][0], 1) for m in MODELS}
+    w = _macro_f1_weights(y_mc, mc_tta1, MODELS)
     A["voting_weights"] = dict(zip(MODELS, w.round(4).tolist()))
 
-    def vote(preds: dict, n_tta: int, subset_models=MODELS):
-        return sum(wi * tta_mean(preds[m][0], n_tta)
-                   for wi, m in zip(w, subset_models))
+    def vote(preds: dict, n_tta: int):
+        probs = {m: tta_mean(preds[m][0], n_tta) for m in MODELS}
+        return _weighted_vote(probs, MODELS, w)
 
     # ---------- Stacking（Meta-Cal 训练；特征=5×11 softmax） ----------
     def stack_feats(preds: dict, n_tta: int):
         return np.hstack([tta_mean(preds[m][0], n_tta) for m in MODELS])
 
+    groups_mc, oof_splits, oof_fold_records = patient_grouped_oof_splits(
+        y_mc,
+        pts_mc,
+        n_splits=C.FUSION_OOF_FOLDS,
+        seed=C.SEED,
+    )
     Xmc, Xte = stack_feats(mc, 1), stack_feats(te, 1)
-    scaler = StandardScaler().fit(Xmc)
     meta_models = {
         "stack_lr": LogisticRegression(C=1.0, max_iter=2000),
         "stack_mlp": MLPClassifier(hidden_layer_sizes=(64,), max_iter=800,
@@ -273,8 +636,9 @@ def main() -> None:  # noqa: PLR0915
     }
     stack_te_probs = {}
     for name, mm in meta_models.items():
-        mm.fit(scaler.transform(Xmc), y_mc)
-        stack_te_probs[name] = mm.predict_proba(scaler.transform(Xte))
+        fitted = make_pipeline(StandardScaler(), clone(mm)).fit(Xmc, y_mc)
+        stack_te_probs[name] = _aligned_predict_proba(
+            fitted, Xte, C.NUM_CLASSES)
 
     # ---------- TTA 扫描（投票 与 LR stacking） ----------
     A["tta_sweep"] = {}
@@ -282,10 +646,11 @@ def main() -> None:  # noqa: PLR0915
         pv = vote(te, n)
         Xte_n = stack_feats(te, n)
         Xmc_n = stack_feats(mc, n)
-        sc_n = StandardScaler().fit(Xmc_n)
-        lr_n = LogisticRegression(C=1.0, max_iter=2000).fit(
-            sc_n.transform(Xmc_n), y_mc)
-        ps = lr_n.predict_proba(sc_n.transform(Xte_n))
+        lr_n = make_pipeline(
+            StandardScaler(),
+            LogisticRegression(C=1.0, max_iter=2000),
+        ).fit(Xmc_n, y_mc)
+        ps = _aligned_predict_proba(lr_n, Xte_n, C.NUM_CLASSES)
         ms1 = float(np.mean([timing[m] for m in MODELS]))
         A["tta_sweep"][str(n)] = {
             "voting": full_metrics(y_te, pv),
@@ -293,29 +658,81 @@ def main() -> None:  # noqa: PLR0915
             "ms_per_image_ensemble": round(ms1 * len(MODELS) * n, 2),
         }
 
-    # ---------- 主配置选择（在 Meta-Cal 上决定，写明协议） ----------
-    cand_mc = {
-        "voting_tta8": vote(mc, 8),
-        "stack_lr_tta8": None,   # 由下方计算
-    }
+    # ---------- 主配置选择（患者分组 OOF，不在拟合集自评） ----------
+    mc_tta8 = {m: tta_mean(mc[m][0], 8) for m in MODELS}
+    voting_oof, voting_fold_weights = grouped_oof_weighted_vote(
+        mc_tta1,
+        mc_tta8,
+        y_mc,
+        oof_splits,
+        MODELS,
+    )
     Xmc8 = stack_feats(mc, 8)
-    sc8 = StandardScaler().fit(Xmc8)
-    lr8 = LogisticRegression(C=1.0, max_iter=2000).fit(
-        sc8.transform(Xmc8), y_mc)
-    # metacal 上的自估（拟合数据上,仅用于择型记录，不作论文主指标）
-    cand_mc["stack_lr_tta8"] = lr8.predict_proba(sc8.transform(Xmc8))
-    A["selection_on_metacal"] = {
-        k: {"macro_f1": f1_score(y_mc, v.argmax(1), average="macro")}
-        for k, v in cand_mc.items()
+    lr8_estimator = LogisticRegression(C=1.0, max_iter=2000)
+    stack_lr_oof = grouped_oof_predict_proba(
+        Xmc8,
+        y_mc,
+        oof_splits,
+        lr8_estimator,
+        C.NUM_CLASSES,
+    )
+    candidate_oof_probs = {
+        "voting_tta8": voting_oof,
+        "stack_lr_tta8": stack_lr_oof,
     }
+    final_key, selection_scores = select_candidate_from_oof(
+        y_mc, candidate_oof_probs)
+    role_metadata = fusion_selection_role_metadata()
+    if list(selection_scores) != role_metadata["oof_selection_candidates"]:
+        raise RuntimeError("OOF 候选分数与预注册选型候选不一致")
+    A["selection_on_metacal"] = selection_scores
+    A["fusion_selection_protocol"] = {
+        "protocol": (
+            "fixed patient-grouped stratified out-of-fold comparison "
+            "within the meta-calibration set"
+        ),
+        "splitter": "StratifiedGroupKFold",
+        "n_splits": C.FUSION_OOF_FOLDS,
+        "seed": C.SEED,
+        "group_definition": (
+            "patient code before the first underscore; repeat biopsies "
+            "from one patient remain in one fold"
+        ),
+        "n_images": int(len(y_mc)),
+        "n_patient_groups": int(len(np.unique(groups_mc))),
+        "folds": oof_fold_records,
+        "weighted_vote_fold_weights": voting_fold_weights,
+        "candidate_oof_scores": selection_scores,
+        **role_metadata,
+        "primary_metric": "macro_f1",
+        "tie_breaker": (
+            "candidate declaration order; weighted voting precedes stacking"
+        ),
+        "selected_candidate": final_key,
+        "selection_reason": (
+            f"highest patient-grouped OOF macro-F1 on meta-calibration: "
+            f"{final_key}={selection_scores[final_key]['macro_f1']:.6f}"
+        ),
+        "test_labels_used_for_selection": False,
+        "final_fit": (
+            "after selection, fusion parameters are refit on all "
+            "meta-calibration samples and used only to predict test"
+        ),
+    }
+
+    # 选型后才在全部 meta-cal 上拟合最终元学习器，仅用于 test 预测。
+    lr8 = make_pipeline(StandardScaler(), clone(lr8_estimator)).fit(
+        Xmc8, y_mc)
     Xte8 = stack_feats(te, 8)
+
     def vote_uniform(preds: dict, n_tta: int):
         p = sum(tta_mean(preds[m][0], n_tta) for m in MODELS) / len(MODELS)
         return p / p.sum(1, keepdims=True)
 
     final_probs = {
         "voting_tta8": vote(te, 8),
-        "stack_lr_tta8": lr8.predict_proba(sc8.transform(Xte8)),
+        "stack_lr_tta8": _aligned_predict_proba(
+            lr8, Xte8, C.NUM_CLASSES),
         "stack_mlp_tta1": stack_te_probs["stack_mlp"],
         "stack_gbdt_tta1": stack_te_probs["stack_gbdt"],
         "stack_lr_tta1": stack_te_probs["stack_lr"],
@@ -326,34 +743,35 @@ def main() -> None:  # noqa: PLR0915
     A["ensembles"] = {k: full_metrics(y_te, v)
                       for k, v in final_probs.items()}
 
-    # ---------- 最终系统 = Meta-Cal macro-F1 最优者 ----------
-    final_key = max(A["selection_on_metacal"],
-                    key=lambda k: A["selection_on_metacal"][k]["macro_f1"])
+    # ---------- 最终系统 = Meta-Cal 患者分组 OOF macro-F1 最优者 ----------
     A["final_key"] = final_key
     p_final_te = final_probs[final_key]
 
-    # ---------- 温度标定（Meta-Cal 拟合 → Test 应用） ----------
-    p_final_mc = cand_mc[final_key]
+    # ---------- 温度标定（最终候选的 Meta-Cal OOF 概率拟合） ----------
+    p_final_mc = candidate_oof_probs[final_key]
     logp_mc = np.log(np.clip(p_final_mc, 1e-12, 1))
     T = fit_temperature(logp_mc, y_mc)
     p_cal_te = apply_temperature(p_final_te, T)
     A["calibration"] = {
         "temperature": T,
+        "fit_source": "selected candidate's patient-grouped meta-cal OOF probabilities",
         "before": calib_suite(y_te, p_final_te),
         "after": calib_suite(y_te, p_cal_te),
     }
-    # 逐类温度对照（R5.4 保险分析：全局单温 vs 每类一温的 balanced ECE）
-    per_cls_T = {}
+    # 逐类温度对照（R5.4 保险分析：全局单温 vs 每个预测类一温）
+    per_cls_T_idx, per_cls_fit_counts, fallback_classes = (
+        fit_predicted_class_temperatures(
+            p_final_mc,
+            y_mc,
+            global_temperature=T,
+            n_classes=C.NUM_CLASSES,
+        )
+    )
+    per_cls_T = {
+        C.CLASSES[class_index]: temperature
+        for class_index, temperature in per_cls_T_idx.items()
+    }
     p_pct = p_final_te.copy()
-    for c in range(C.NUM_CLASSES):
-        m = y_mc == c
-        # 对该类样本子集拟合温度（同全局法，仅换样本），样本过少则回退全局 T
-        if m.sum() >= 50:
-            t_c = fit_temperature(logp_mc[m], y_mc[m])
-        else:
-            t_c = T
-        per_cls_T[C.CLASSES[c]] = t_c
-    # 应用：按真实类无法在预测期知晓，故按预测类应用（标准 class-wise TS 做法）
     yp_arg = p_final_te.argmax(1)
     for c in range(C.NUM_CLASSES):
         m = yp_arg == c
@@ -362,11 +780,23 @@ def main() -> None:  # noqa: PLR0915
                                          per_cls_T[C.CLASSES[c]])
     A["classwise_temperature_probe"] = {
         "per_class_T": {k: round(v, 4) for k, v in per_cls_T.items()},
+        "fit_partition": "patient-grouped meta-cal OOF probabilities",
+        "fit_group_definition": "predicted class",
+        "application_group_definition": "predicted class",
+        "n_fit_images_by_predicted_class": {
+            C.CLASSES[class_index]: per_cls_fit_counts[class_index]
+            for class_index in range(C.NUM_CLASSES)
+        },
+        "fallback_to_global_temperature": [
+            C.CLASSES[class_index] for class_index in fallback_classes
+        ],
         "balanced_ece_global_T": A["calibration"]["after"][
             "classwise_ece"]["balanced_ece"],
         "balanced_ece_classwise_T": classwise_ece(y_te, p_pct)[
             "balanced_ece"],
-        "note": "保险对照：正文默认全局单温；此处量化每类一温是否更优",
+        "note": (
+            "保险对照：正文默认全局单温；逐类温度的拟合与应用均按预测类分组"
+        ),
     }
 
     # ---------- 95% CI（患者级 bootstrap） ----------
@@ -380,6 +810,14 @@ def main() -> None:  # noqa: PLR0915
         "cohen_kappa": lambda yy, pp: cohen_kappa_score(yy, pp.argmax(1)),
         "auc_ovr_macro": lambda yy, pp: roc_auc_score(
             yy, pp, multi_class="ovr", average="macro"),
+        # R4.5 要求"所有主要指标"都带 CI——宏特异度与宏 AP 原先缺失，
+        # 导致 Table 2 该两格只能填"—"、正文 macro AP 裸奔
+        "macro_specificity": lambda yy, pp: macro_specificity(yy, pp),
+        "macro_sensitivity": lambda yy, pp: recall_score(
+            yy, pp.argmax(1), average="macro"),
+        "macro_ap": lambda yy, pp: macro_ap(yy, pp),
+        "worst_class_recall": lambda yy, pp: float(min(
+            recall_score(yy, pp.argmax(1), average=None, zero_division=0))),
     }
     A["final_ci"] = patient_bootstrap_ci(y_te, p_final_te, pts_te, fns)
     # 校准指标（ECE/Brier/NLL）的患者级 bootstrap CI（回应 R5.5：
@@ -437,7 +875,13 @@ def main() -> None:  # noqa: PLR0915
 
     # ---------- 转诊分析（θ 在 Meta-Cal 上选，Test 上评） ----------
     p_cal_mc = apply_temperature(p_final_mc, T)
-    ref = {"thresholds": {}}
+    ref = {
+        "thresholds": {},
+        "metacal_probability_source": (
+            "temperature-scaled patient-grouped OOF probabilities from "
+            "the selected final candidate"
+        ),
+    }
     for th in C.REFERRAL_THRESHOLDS:
         conf_mc = p_cal_mc.max(1)
         auto_mc = conf_mc >= th
@@ -447,7 +891,7 @@ def main() -> None:  # noqa: PLR0915
         row = {
             "metacal_coverage": float(auto_mc.mean()),
             "metacal_auto_acc": float(
-                (yp_mc := p_cal_mc.argmax(1))[auto_mc].__eq__(
+                p_cal_mc.argmax(1)[auto_mc].__eq__(
                     y_mc[auto_mc]).mean()) if auto_mc.any() else None,
             "coverage": float(auto.mean()),
             "auto_accuracy": float((yp[auto] == y_te[auto]).mean())
@@ -475,11 +919,48 @@ def main() -> None:  # noqa: PLR0915
     A["referral"] = ref
 
     # ---------- McNemar（最终系统 vs 最佳单骨干 TTA1） ----------
-    best_single = max(MODELS, key=lambda m:
-                      A["singles"][m]["tta1"]["macro_f1"])
+    best_single, single_metacal_scores = select_best_single_from_metacal(
+        y_mc, mc_tta1)
+    A["best_single_selection"] = {
+        "selected": best_single,
+        "criterion": "highest meta-calibration macro-F1 at TTA×1",
+        "metacal_macro_f1": single_metacal_scores,
+        "test_labels_used_for_selection": False,
+    }
     A["mcnemar_final_vs_best_single"] = {
         "best_single": best_single,
+        "selection_source": "meta-calibration macro-F1 at TTA×1",
         **mcnemar(y_te, p_final_te, tta_mean(te[best_single][0], 1)),
+    }
+
+    # ---------- 最终系统 vs 最佳单骨干：配对 Δ 的患者级 bootstrap CI ----------
+    # R5.7 直接问"最差类 recall 0.652→0.711 这一提升是否可靠"；McNemar 只
+    # 检验全类合并的图像级正确率，答不了"某个具体增益"。此处给 Δ 的区间。
+    p_best_te = tta_mean(te[best_single][0], 1)
+    delta_fns = {
+        "macro_f1": lambda yy, pp: f1_score(yy, pp.argmax(1),
+                                            average="macro"),
+        "accuracy": lambda yy, pp: accuracy_score(yy, pp.argmax(1)),
+        "balanced_accuracy": lambda yy, pp: balanced_accuracy_score(
+            yy, pp.argmax(1)),
+        "worst_class_recall": lambda yy, pp: float(min(
+            recall_score(yy, pp.argmax(1), average=None, zero_division=0))),
+        "macro_ap": lambda yy, pp: macro_ap(yy, pp),
+    }
+    for c, cls in enumerate(C.CLASSES):
+        delta_fns[f"recall_{cls}"] = (
+            lambda yy, pp, c=c: recall_score(
+                yy, pp.argmax(1), labels=[c], average=None,
+                zero_division=0)[0])
+    A["delta_vs_best_single_ci"] = {
+        "best_single": best_single,
+        "note": ("Δ = final system − best single backbone (TTA×1), paired "
+                 "patient-level bootstrap; worst_class_recall compares the "
+                 "minimum over classes within each resample, so the "
+                 "identity of the worst class may differ between systems "
+                 "— per-class recall deltas are reported alongside."),
+        "deltas": paired_bootstrap_delta(y_te, p_final_te, p_best_te,
+                                         pts_te, delta_fns, n_boot=500),
     }
 
     # ---------- 混淆矩阵（行归一） ----------
@@ -523,14 +1004,23 @@ def main() -> None:  # noqa: PLR0915
     y_b, pm_b, pv_b, n_b, _ = aggregate(pts_te)
     persons_te = [str(x).split("_")[0] for x in pts_te]
     y_p, pm_p, pv_p, n_p, n_mixed = aggregate(persons_te)
+    patient_mean_metrics = full_metrics(y_p, pm_p)
+    patient_vote_metrics = full_metrics(y_p, pv_p)
+    n_patients_evaluated = sum(
+        row["n"] for row in patient_mean_metrics["per_class"].values())
+    if n_patients_evaluated != len(y_p):
+        raise RuntimeError("患者级 per-class 样本数与聚合数组不一致")
+    if n_patients_evaluated + n_mixed != n_p:
+        raise RuntimeError("患者总数不等于已评估与混合诊断排除数之和")
     A["patient_level"] = {
         "n_biopsies_test": int(n_b),
         "n_patients_test": int(n_p),
+        "n_patients_evaluated": int(n_patients_evaluated),
         "n_patients_mixed_diagnoses_excluded": int(n_mixed),
         "biopsy_mean_prob_aggregation": full_metrics(y_b, pm_b),
         "biopsy_majority_vote_aggregation": full_metrics(y_b, pv_b),
-        "mean_prob_aggregation": full_metrics(y_p, pm_p),
-        "majority_vote_aggregation": full_metrics(y_p, pv_p),
+        "mean_prob_aggregation": patient_mean_metrics,
+        "majority_vote_aggregation": patient_vote_metrics,
     }
 
     # ---------- 决策曲线分析（一对多净获益, 校准后概率） ----------

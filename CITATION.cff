@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: If you use this software or the aggregate data, please cite the accompanying article.
-title: Analysis code and de-identified aggregate results for a heterogeneous deep-learning ensemble for 11-class kidney disease diagnosis on TEM
+title: A heterogeneous deep-learning ensemble for assistive 11-class classification of kidney disease on transmission electron microscopy
 type: software
 license: MIT
 authors:

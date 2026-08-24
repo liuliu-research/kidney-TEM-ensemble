@@ -1,12 +1,8 @@
 # Figures
 
-**Pending.** The publication figures are generated from `aggregate_results/` once the GPU
-batch completes, by the figure step of the project RUNBOOK, and are copied here at 300 dpi
-as PNG and PDF.
-
-Planned set: cohort and class composition; per-class performance with confidence
-intervals; confusion matrix; calibration and reliability; TTA and fusion comparison;
-ablation arms; referral threshold sweep; Grad-CAM panels — plus the supplementary figures.
+This directory contains the three main and eleven supplementary publication figures as
+600-dpi PNG and vector/raster PDF exports. Every file is hash-bound to the external
+visual-review sign-off used by the local release gate.
 
 ## Before adding anything here
 

@@ -1,0 +1,23 @@
+{
+  "review_identity": "single_anonymized",
+  "artifact_access": "public",
+  "forbidden_suffixes": [
+    ".7z",
+    ".ckpt",
+    ".dta",
+    ".env",
+    ".npz",
+    ".npy",
+    ".pkl",
+    ".pickle",
+    ".pt",
+    ".pth",
+    ".sav",
+    ".xls",
+    ".xlsx",
+    ".zip"
+  ],
+  "max_file_bytes": 41943040,
+  "max_file_bytes_reason": "The limit is raised only for de-identified high-resolution publication figures; the largest current file is a supplementary PNG, and raw clinical images, model weights, prediction tensors, and patient-level data remain forbidden.",
+  "banned_content": []
+}

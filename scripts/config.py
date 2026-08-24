@@ -74,7 +74,8 @@ HPARAMS = {
     "batch_size": 32,
     "batch_size_effnet": 40,
     "max_epochs": 40,
-    "early_stop_patience": 8,      # 监控 Meta-Cal macro-F1
+    # legacy 主链曾监控 Meta-Cal；strict_oof 改为 Train 内 inner-validation。
+    "early_stop_patience": 8,
     "base_lr": 1e-4,               # 分类头；骨干 0.1x
     "backbone_lr_mult": 0.1,
     "weight_decay": 1e-4,
@@ -88,8 +89,16 @@ HPARAMS = {
     "amp_dtype": "bfloat16",
 }
 
-# 消融批次（Swin-B，统一 30 epoch 预算，早停 patience 8）
+# 消融批次：统一 30 epoch 预算、早停 patience 8。
+# 骨干不再写死 Swin-B，改为"主训完成后按 **Meta-Cal** macro-F1 最高者"——
+#   · 科学性：消融比较的是训练配方，同一骨干内比较即可成立；用实测最强骨干
+#     更有说服力（配方在最强模型上依然有效），且选择依据是 Meta-Cal 而非
+#     Test，不构成选择偏倚；
+#   · 工期：Swin-B 实测 1726 s/轮，ViT-B 仅 655 s/轮，6 臂 × 30 轮相差约 2.2 天。
+# 由 orchestrator 在消融阶段开始前写入 results/ablation_backbone.json，
+# 稿件与响应信用 {{abl_backbone}} token 渲染，不硬编码骨干名。
 ABLATION_EPOCH_BUDGET = 30
+ABLATION_BACKBONE_FALLBACK = "swin_base"   # 日志缺失时的兜底
 ABLATIONS = {
     "ce_plain":        {"sampler": False, "focal": False, "mix": False, "cb_reweight": False},
     "ce_sampler":      {"sampler": True,  "focal": False, "mix": False, "cb_reweight": False},
@@ -102,6 +111,9 @@ ABLATIONS = {
 # ---------------- TTA（确定性顺序；前 N 个即 N-fold TTA） ----------------
 TTA_SWEEP = [1, 2, 4, 8, 16]
 REFERRAL_THRESHOLDS = [0.5, 0.6, 0.7, 0.8, 0.9]
+# legacy 融合分析常量；strict_oof 的融合拟合使用 Train outer-OOF，
+# 独立 Meta-Cal 只比较两个固定候选并拟合温度/评估转诊规则。
+FUSION_OOF_FOLDS = 5
 
 # ---------------- 其他 ----------------
 GPU_IDLE_UTIL_THRESHOLD = 15      # % 以下视为空闲

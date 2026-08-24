@@ -63,7 +63,9 @@ Routine electron-microscopy frames carry a printed strip along the bottom edge w
 magnification, scale bar and instrument text. Because that text correlates with
 acquisition habits and could act as a shortcut, the bottom 28 pixels of every frame are
 set to black before caching (`ANNOT_STRIP_PX = 28`). This is applied uniformly to every
-image of every class, so it cannot itself introduce a class-dependent artefact.
+image of every class and removes 7.29% of the resized input by design. It reduces rather
+than eliminates metadata-shortcut risk: scale text or measurement marks can remain above
+the strip, and the uniform black band is itself a fixed positional feature.
 
 Measurement marks drawn inside the frame during routine reporting — lines and numerals
 placed by the reporting pathologist — cannot be removed without destroying image content.

@@ -16,13 +16,23 @@ from fusion_analysis import calib_suite, full_metrics, load_preds, tta_mean
 
 
 def main() -> None:
-    out = {}
+    # 骨干名从 orchestrator 落盘的选择结果读取，不硬编码——它是步骤名与
+    # 产物名之间唯一的桥，写死等于埋一颗改配置就爆的雷。
+    bb = json.loads(
+        (C.OUT_DIR / "ablation_backbone.json").read_text("utf-8"))["backbone"]
+    out, missing = {}, []
     for abl in C.ABLATIONS:
-        tag = f"swin_base_abl_{abl}"
+        tag = f"{bb}_abl_{abl}"
         try:
             probs, y, pts, _ = load_preds(tag, "test")
-        except FileNotFoundError:
-            print("WARN missing", tag)
+        except Exception as e:  # noqa: BLE001  含 FileNotFoundError/BadZipFile
+            # 原实现只捕 FileNotFoundError、打一行 WARN 后 continue，最后
+            # 无条件写盘并返回 0 → 任何一个消融臂缺失或 npz 截断，都会产出
+            # **残缺的消融表而流水线报告成功**，一路写到 ALL.done，直到出稿
+            # 才可能发现。消融表是 R3.4/R4.6/R5.2/R5.10 四条意见的直接证据，
+            # 残表进正文即为不实陈述，故改为记录后在末尾显式失败。
+            print("MISSING", tag, repr(e), flush=True)
+            missing.append(tag)
             continue
         p = tta_mean(probs, 1)
         m = full_metrics(y, p)
@@ -46,8 +56,14 @@ def main() -> None:
         print(abl, "macroF1=", round(m["macro_f1"], 4),
               "ECE=", round(cal["ece"], 4), flush=True)
 
+    out["_backbone"] = bb        # 六个消融臂名均不以 _ 开头，不会撞键
     (C.OUT_DIR / "ablation_analysis.json").write_text(
         json.dumps(out, indent=1), encoding="utf-8")
+    if missing:
+        # 先写盘再失败：残表保留供人工判断，但绝不标记该步成功
+        raise SystemExit(
+            f"消融臂缺失/损坏 {len(missing)}/{len(C.ABLATIONS)}: {missing}"
+            " —— 拒绝以不完整的消融表标记成功")
 
 
 if __name__ == "__main__":

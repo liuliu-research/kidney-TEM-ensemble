@@ -1,0 +1,58 @@
+{
+  "best_epoch": 35,
+  "best_metacal_macro_f1": 0.2951597163699972,
+  "contract_sha256": "0559e3168257a25bfab2c317b7a2fdc983d4a6b0c0f2dde04f4ed555182163f4",
+  "gpu_utilization": {
+    "mean": 81.53439529999511,
+    "median": 95.0,
+    "n": 143319,
+    "p10": 31.0,
+    "p90": 96.0
+  },
+  "hparams": {
+    "amp_dtype": "bfloat16",
+    "backbone_lr_mult": 0.1,
+    "base_lr": 0.0001,
+    "batch_size": 40,
+    "batch_size_effnet": 40,
+    "cutmix_alpha": 1.0,
+    "early_stop_patience": 8,
+    "focal_gamma": 1.5,
+    "label_smoothing": 0.05,
+    "max_epochs": 40,
+    "mix_prob": 0.5,
+    "mixup_alpha": 0.2,
+    "num_workers": 0,
+    "warmup_frac": 0.1,
+    "weight_decay": 0.0001
+  },
+  "independent_metacal_macro_f1": 0.2951597163699972,
+  "max_epochs": 40,
+  "metacal_metric_role": "independent evaluation; not epoch selection",
+  "model_name": "tf_efficientnet_b4.ns_jft_in1k",
+  "outer_best_epochs": [
+    38,
+    23,
+    35,
+    38,
+    35
+  ],
+  "outer_early_stopping_partition": "patient-grouped inner validation",
+  "outer_stopped_epochs": [
+    40,
+    31,
+    40,
+    40,
+    40
+  ],
+  "scheduler_horizon_epochs": 40,
+  "status": "complete",
+  "stopped_epoch": 35,
+  "summary_type": "strict_outer5_plus_terminal_aggregate",
+  "tag": "efficientnet_b4",
+  "terminal_early_stopping": false,
+  "terminal_epoch_rule": "median_of_five_outer_best_epochs",
+  "terminal_fixed_epoch": 35,
+  "test_labels_used_for_training_or_selection": false,
+  "total_seconds": 149113.99964785576
+}

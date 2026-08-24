@@ -1,0 +1,11 @@
+{
+  "backbone": "swin_base",
+  "criterion": "highest meta-calibration macro-F1 among the five main backbones; the held-out test set played no role in this choice",
+  "metacal_macro_f1": {
+    "efficientnet_b4": 0.2855694396864829,
+    "vit_base": 0.2974659065083507,
+    "swin_base": 0.33351193882641794,
+    "convnext_base": 0.32357623594419205,
+    "deit_base": 0.3005969419211356
+  }
+}
