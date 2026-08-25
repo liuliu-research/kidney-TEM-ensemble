@@ -24,10 +24,6 @@ de-identified aggregate summaries, not row-level operational logs.
 | `frozen_baseline.json` | `scripts/frozen_baseline.py` | Frozen ImageNet features with conventional classifiers. |
 | `io_profile.json`, `profiler_*.txt` | `scripts/profile_io.py` | Throughput with and without the data-governance layer, in triplicate. |
 | `train_log_*.json` | `scripts/strict_oof/train.py` | De-identified aggregate summaries of outer-fold stopping epochs, terminal epochs, wall-clock time, hyperparameters and GPU utilisation for six backbone/comparator runs and nine ablation arms. |
-| `train_log_*.json` | `scripts/strict_oof/train.py` | De-identified aggregate summaries of outer-fold stopping epochs, terminal epochs, wall-clock time, hyperparameters and GPU utilisation for six backbone/comparator runs and nine ablation arms. |
-| `train_log_*.json` | `scripts/strict_oof/train.py` | De-identified aggregate summaries of outer-fold stopping epochs, terminal epochs, wall-clock time, hyperparameters and GPU utilisation for six backbone/comparator runs and nine ablation arms. |
-| `train_log_*.json` | `scripts/strict_oof/train.py` | De-identified aggregate summaries of outer-fold stopping epochs, terminal epochs, wall-clock time, hyperparameters and GPU utilisation for six backbone/comparator runs and nine ablation arms. |
-| `train_log_*.json` | `scripts/strict_oof/train.py` | De-identified aggregate summaries of outer-fold stopping epochs, terminal epochs, wall-clock time, hyperparameters and GPU utilisation for six backbone/comparator runs and nine ablation arms. |
 
 ## Protocol boundary represented in these aggregates
 
