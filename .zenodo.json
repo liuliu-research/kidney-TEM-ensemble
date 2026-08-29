@@ -1,6 +1,6 @@
 {
-  "title": "Analysis code and de-identified aggregate results for: A heterogeneous deep-learning ensemble for 11-class diagnosis of kidney disease on transmission electron microscopy",
-  "description": "Preprocessing, person-level splitting with a leakage guard, backbone training, test-time augmentation, decision fusion, calibration, ablation, referral and Grad-CAM code, together with the de-identified aggregate tables behind the figures and tables of the accompanying Scientific Reports submission. Contains no electron microscopy image, no model weight, no prediction tensor, and no patient or biopsy archive number.",
+  "title": "Analysis code and de-identified aggregate results for: A heterogeneous deep-learning ensemble for assistive 11-class classification of kidney disease on transmission electron microscopy",
+  "description": "Preprocessing, person-level splitting with a leakage guard, backbone training, test-time augmentation, decision fusion, calibration, ablation, referral and Grad-CAM code, together with the de-identified aggregate tables behind the figures and tables of the accompanying Scientific Reports submission. Contains no raw/source electron microscopy images, no model weights, no prediction tensors, and no patient or biopsy archive numbers. Source-microscopy content in the publication figures is limited to visually reviewed, de-identified Grad-CAM panels.",
   "license": "MIT",
   "upload_type": "software",
   "access_right": "open",

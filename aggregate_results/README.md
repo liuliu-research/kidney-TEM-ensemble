@@ -14,23 +14,25 @@ De-identified aggregate outputs. Nothing in this directory is patient-level.
 These files were copied only after the core-result validator passed. They contain
 aggregate metrics and profiler summaries, never row-level predictions or identifiers.
 The release does not include checkpoints, prediction tensors, workflow markers or
-raw per-epoch training and inference logs. The `train_log_*.json` files are
-de-identified aggregate summaries, not row-level operational logs.
+raw inference logs, raw per-epoch histories or high-frequency GPU-utilisation samples.
+The `train_log_*.json` files are projected run-level summaries. Each embeds the SHA-256
+of its unmodified controlled source and records the removed array fields and counts.
 
 | File | Produced by | Contents |
 |---|---|---|
-| `analysis.json` | `scripts/strict_oof/analyze.py` + local release gate | Headline and per-class metrics with person-clustered bootstrap CIs, Train-OOF-fitted fusion, independent Meta-Cal selection/calibration/referral fitting, terminal Test TTA sweep, diversity, McNemar and patient-level aggregation. For privacy, the public copy omits per-item prediction thresholds and retains at most 512 deterministic display points per precision-recall curve; its metadata binds the unmodified controlled source by SHA-256. |
+| `analysis.json` | `scripts/strict_oof/analyze.py` + local release gate | Headline and per-class metrics with person-clustered bootstrap CIs, Train-OOF-fitted fusion, independent Meta-Cal selection/calibration and prespecified referral assessment, terminal Test TTA sweep, diversity, McNemar and patient-level aggregation. For privacy, the public copy omits per-item prediction thresholds and retains at most 512 deterministic display points per precision-recall curve; its metadata binds the unmodified controlled source by SHA-256. |
 | `ablation_analysis.json` | `scripts/strict_oof/analyze_ablation.py` | Nine descriptive class-imbalance and augmentation arms under the common TTA1 evaluation schema. |
 | `frozen_baseline.json` | `scripts/frozen_baseline.py` | Frozen ImageNet features with conventional classifiers. |
 | `io_profile.json`, `profiler_*.txt` | `scripts/profile_io.py` | Throughput with and without the data-governance layer, in triplicate. |
-| `train_log_*.json` | `scripts/strict_oof/train.py` | De-identified aggregate summaries of outer-fold stopping epochs, terminal epochs, wall-clock time, hyperparameters and GPU utilisation for six backbone/comparator runs and nine ablation arms. |
+| `train_log_*.json` | `scripts/strict_oof/train.py` + local release gate | Projected run-level summaries of stopping/terminal epochs, wall-clock time, hyperparameters, seeds, environments and aggregate GPU utilisation for six backbone/comparator runs and nine ablation arms; raw epoch histories and high-frequency GPU samples are removed and source-hash bound. |
 
 ## Protocol boundary represented in these aggregates
 
 - Soft-voting weights and the primary logistic-regression stacker are fitted on complete
   Train OOF predictions at TTA8.
-- The independent Meta-Cal partition selects between `voting_tta8` and `stack_lr_tta8`,
-  fits the selected candidate's global temperature, and selects the referral threshold.
+- The independent Meta-Cal partition selects between `voting_tta8` and `stack_lr_tta8`
+  and fits the selected candidate's global temperature. It also assesses the prespecified
+  referral rule; no threshold met the 0.90 target, so no operating threshold was selected.
 - The held-out Test partition is used only after those choices are frozen.
 - All nine ablation arms are evaluated at TTA1. Their differences are descriptive
   fixed-budget single-run contrasts, not paired or across-seed causal estimates.

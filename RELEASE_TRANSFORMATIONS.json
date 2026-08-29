@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "purpose": "Machine-readable disclosure of release-only portability, documentation and non-numeric metadata wording changes. The executed controlled source tree remains bound in the strict result contract.",
+  "controlled_strict_source_tree_sha256": "22c5e50ea27084f3f147c2e3b6f5f51c2eb3612ef79911b25dc6d981c5837c13",
+  "numeric_settings_changed": false,
+  "transformations": [
+    {
+      "path": "scripts/config.py",
+      "classification": "host_path_portability",
+      "numeric_settings_changed": false,
+      "controlled_source_sha256": "76e1ee55f3fcb833c4de1f9fed62419968d24ad41d8dfc5ca0681fd3d9e4ce32",
+      "public_source_sha256": "c18d9373a03cb4bf42c7027ebfde7d01caab7fb960ac95531b2950ed480ee003"
+    },
+    {
+      "path": "scripts/image_quality.py",
+      "classification": "host_path_portability",
+      "numeric_settings_changed": false,
+      "controlled_source_sha256": "d7d74d554651efe0d1d2097cbb86b85a09fc2331c3377ff13de726e46841bba3",
+      "public_source_sha256": "09ac2e7d0562431b96e1c7e0d9805b68bffb8ae9b7937e4835ef44c86c5016be"
+    },
+    {
+      "path": "scripts/run_all.sh",
+      "classification": "host_path_portability",
+      "numeric_settings_changed": false,
+      "controlled_source_sha256": "6db12b9a0b17f60aa7a2bb2179ab600e461334bc6b4171102cb64561ef41bb75",
+      "public_source_sha256": "814a003e755258510f5e17dcd6430dfb099cc3a65cf9eaa5a610dc265703efa2"
+    },
+    {
+      "path": "scripts/strict_oof/README.md",
+      "classification": "documentation_status_and_entry_clarification",
+      "numeric_settings_changed": false,
+      "controlled_source_sha256": "ad76dda7bdd04d660f3659cf8a97936a26c2f48dc7f74424741662c0b9d14bff",
+      "public_source_sha256": "845a5fce1e9368ccd4760dbb4c6aafc3ffecde8d2f0a0f7c6c578bf3794e528d"
+    },
+    {
+      "path": "scripts/strict_oof/hourly_report.sh",
+      "classification": "host_path_portability",
+      "numeric_settings_changed": false,
+      "controlled_source_sha256": "39159c3004dca878c158e07b46dea964a12ac1a03df8ddf0ef9d8386260b1112",
+      "public_source_sha256": "bbcbbac48bf6a12bfcb9cccd45f5c3d395a68728cd61dc1378b64c3ea2f92c38"
+    },
+    {
+      "path": "scripts/strict_oof/protocol.py",
+      "classification": "non_numeric_metadata_wording_correction",
+      "numeric_settings_changed": false,
+      "controlled_source_sha256": "0af5fb0a6c5a4893f35087d28e922ad873281e56f63a41c563243ea1bec9a75e",
+      "public_source_sha256": "0922a5a2ef79b8ef2d06775daafac0e34ff192a5cc24b07244dc49cde2b62c9d"
+    },
+    {
+      "path": "scripts/strict_oof/run_all.sh",
+      "classification": "host_path_portability",
+      "numeric_settings_changed": false,
+      "controlled_source_sha256": "d718425ae470ea16a67677c111f0694eeb1cce37d89c2b5b4ca7f60c5ea9c951",
+      "public_source_sha256": "dcbbdbfee3e0055ee847abd914db6e66ee76356710b9ce607fd4e5fef48ed291"
+    },
+    {
+      "path": "scripts/strict_oof/watchdog.sh",
+      "classification": "host_path_portability",
+      "numeric_settings_changed": false,
+      "controlled_source_sha256": "e0af270d8bbae36ab96733e8324eea97fa1dfd6615041cefa1ae03617fda1cff",
+      "public_source_sha256": "e787cd33e56e82bdb76dcd676da967e3c84ac64136e5e4a8d3fc9e88f7462beb"
+    }
+  ]
+}

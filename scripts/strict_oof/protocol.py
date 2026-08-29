@@ -687,7 +687,7 @@ def static_protocol() -> dict[str, Any]:
         "train_definition": "original Train only; source split remains frozen",
         "metacal_definition": (
             "original Meta-Cal; independent fusion selection, calibration, "
-            "and referral-threshold fitting"
+            "and prespecified referral-rule assessment"
         ),
         "terminal_test_definition": "original Test; labels sealed from all selection",
         "classes": list(CLASSES),

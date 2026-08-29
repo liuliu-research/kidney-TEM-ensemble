@@ -1,8 +1,8 @@
 # Figures
 
-This directory contains the three main and eleven supplementary publication figures as
-600-dpi PNG and vector/raster PDF exports. Every file is hash-bound to the external
-visual-review sign-off used by the local release gate.
+This directory contains eight main and six supplementary publication figures as
+600-dpi PNG and vector/raster PDF exports. Every file is hash-bound to the Codex visual
+QA record used by the local release gate; this is not author confirmation.
 
 ## Before adding anything here
 
@@ -17,6 +17,7 @@ and neither can be automated:
    mark rather than tissue, the panel must not be presented as evidence of morphological
    attention, and the manuscript text must say so.
 
-`PRIVACY_AUDIT.py` blocks raster images everywhere except this directory, and flags every
-file placed here for manual sign-off. A flag here is not a failure; it is the reminder that
-these two checks are owed.
+`PRIVACY_AUDIT.py` accepts only the exact 28 PNG/PDF paths and SHA-256 values recorded
+in `privacy_policy.json`; missing, extra or byte-drifted figures fail closed. The hashes
+originate from the Codex visual QA record checked by the local release gate. Authors must
+still complete their own privacy and scientific-interpretation confirmation before upload.

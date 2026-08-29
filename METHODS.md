@@ -34,9 +34,10 @@ backbone training or epoch selection.
 Soft-voting weights and the primary logistic-regression stacking meta-learner are fitted
 on the complete Train OOF predictions at TTA8. The independent Meta-Cal partition is then
 used to select between the two pre-specified candidates (`voting_tta8` and
-`stack_lr_tta8`), fit the selected candidate's global temperature, and select the
-referral threshold. These choices are frozen before the held-out Test partition is used
-once for terminal evaluation.
+`stack_lr_tta8`) and fit the selected candidate's global temperature. The prespecified
+referral rule was then assessed on Meta-Cal; no threshold in {0.5, ..., 0.9} reached
+autonomous accuracy 0.90, so no operating threshold was selected. These choices are
+frozen before the held-out Test partition enters the terminal analysis stage.
 
 ## Image preprocessing
 
@@ -65,8 +66,9 @@ and at most 40 outer-fold epochs. Outer-fold early stopping uses only the inner-
 macro-F1 with patience 8. For each backbone and ResNet-50, the terminal epoch count is the
 median of its five outer-fold best epochs; the model is then retrained on the complete
 Train partition for that fixed count, without early stopping. The scheduler retains its
-40-epoch horizon. In total, the strict workflow contains 30 outer-fold and six terminal
-training runs. Checkpoints are written every epoch so an interrupted run resumes at the
+40-epoch horizon. The main-model path contains 30 outer-fold and six terminal training
+runs; three additional isolated ablation runs bring the strict-workflow total to 39.
+Checkpoints are written every epoch so an interrupted run resumes at the
 epoch boundary rather than from scratch.
 
 The ablation analysis contains nine arms under a common 30-epoch budget: plain
@@ -88,8 +90,9 @@ primary candidates are soft voting and logistic-regression stacking at TTA8; bot
 voting weights and logistic-regression coefficients are fitted on complete Train OOF
 predictions. Their independent Meta-Cal macro-F1 selects the final candidate. A single
 global temperature is fitted to the selected candidate's independent Meta-Cal
-probabilities, and the referral threshold is selected on those temperature-scaled
-Meta-Cal probabilities. Multilayer-perceptron and gradient-boosted-tree stackers are
+probabilities. The prespecified referral rule is assessed on those temperature-scaled
+probabilities; no grid threshold met the 0.90 autonomous-accuracy target, so none was
+selected. Multilayer-perceptron and gradient-boosted-tree stackers are
 fitted on Train OOF TTA1 features and reported only as post-hoc descriptive sensitivity
 analyses. Per-class temperature scaling is likewise a sensitivity analysis; the primary
 system uses the global temperature.
@@ -102,9 +105,11 @@ and average precision. Uncertainty comes from person-clustered bootstrap resampl
 that repeat biopsies of one person resample together. Calibration is reported as Brier
 score, negative log-likelihood, per-class and balanced expected calibration error, and
 reliability diagrams. Ensemble diversity is reported as pairwise backbone correlation,
-disagreement rate and mutual information. The ensemble is compared against the best single
-backbone by McNemar's paired test. A referral analysis sweeps confidence thresholds from
-0.5 to 0.9 and reports the disease composition of referred cases.
+disagreement rate and mutual information. The primary comparison with the best single
+backbone uses a person-cluster paired bootstrap. McNemar's paired test on image-level
+correctness is reported only as a descriptive sensitivity analysis. A referral analysis
+sweeps confidence thresholds from 0.5 to 0.9 and reports the disease composition of
+referred cases.
 
 Throughput is profiled with and without the data-governance layer, in triplicate, with the
 PyTorch profiler.

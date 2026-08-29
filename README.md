@@ -23,13 +23,17 @@ Every image of a person — including repeat biopsies — falls in exactly one s
 The TEM images are clinical records and cannot be redistributed. All image-level and
 patient-level processing — manifest construction, person-level splitting, cache building,
 training, inference, fusion and analysis — ran on the authorised controlled host; only
-aggregate JSON and CSV summaries are published here. The tables released are counts,
+aggregate JSON and CSV summaries, together with visually reviewed, de-identified
+publication figures, are published here. The tables released are counts,
 proportions, distribution summaries, image-fidelity statistics and model metrics.
 
 Specifically, this repository contains no redistributable raw images, no model weights,
 no prediction tensors, no per-image or per-patient manifests, and no `PT` archive
-numbers. It also contains no step markers or per-run training or inference logs.
-Publication figures include only visually reviewed, de-identified Grad-CAM panels. `PT` numbers
+numbers. It also contains no step markers, raw per-epoch histories or high-frequency
+GPU-utilisation samples. The `train_log_*.json` files are projected run-level summaries
+that retain aggregate timing, stopping, seed, environment and hyperparameter fields.
+Source-microscopy content appears only in visually reviewed, de-identified Grad-CAM
+publication panels. `PT` numbers
 are pseudonymous patient keys, and the biopsy folder names that carry them
 (`PT######_YYYYMMDD`) additionally encode an individual-level date; both are treated as
 quasi-identifiers and are blocked from release. It contains no names, no medical record
@@ -55,17 +59,17 @@ legal approval.
 
 | Path | Contents |
 |---|---|
-| `scripts/strict_oof/run_all.sh` | **Sole main reproduction entry** for the revised analysis; starts the strict, resumable workflow. |
+| `scripts/strict_oof/run_all.sh` | Sole strict-continuation orchestration entry after the validated legacy prerequisite snapshot has been materialised. |
 | `scripts/strict_oof/workflow.py` | Frozen 94-step plan: patient-grouped Train OOF, terminal retraining, inference, nine-arm ablation, analysis and validation. |
 | `scripts/strict_oof/protocol.py` | Protocol constants and fail-closed contracts for partitions, folds, TTA depths and result lineage. |
 | `scripts/strict_oof/train.py` | Outer-fold, terminal and additional-ablation training with checkpoint validation and exact resume. |
 | `scripts/strict_oof/predict.py` | Train OOF TTA8 and terminal Meta-Cal/Test TTA16 inference with hash-bound shards. |
-| `scripts/strict_oof/analyze.py` | Train-OOF fusion fitting, independent Meta-Cal selection/calibration/referral fitting and terminal Test analysis. |
+| `scripts/strict_oof/analyze.py` | Train-OOF fusion fitting, independent Meta-Cal selection/calibration and prespecified referral assessment, followed by terminal Test analysis. |
 | `scripts/strict_oof/analyze_ablation.py` | Combines the six retained arms and three additional arms under a common TTA1 evaluation schema. |
 | `scripts/strict_oof/validate.py` | Deep, fail-closed validation of protocol, artifacts, probabilities and aggregate analysis. |
 | `scripts/config.py`, `build_manifest.py`, `make_split.py`, `build_cache.py`, `image_quality.py` | Shared frozen cohort, split, preprocessing and image-fidelity dependencies used by the strict workflow. |
 | `scripts/frozen_baseline.py`, `profile_io.py`, `validate_core_results.py` | Contract-bound comparator, systems summary and compatibility validation dependencies. |
-| `scripts/run_all.sh`, `orchestrator.py`, `train_backbone.py`, `predict.py`, `fusion_analysis.py`, `ablation_analysis.py`, `gradcam.py` | **Superseded legacy workflow**, retained only for provenance and compatibility; these are not the reproduction route for the revised results. |
+| `scripts/run_all.sh`, `orchestrator.py`, `train_backbone.py`, `predict.py`, `fusion_analysis.py`, `ablation_analysis.py`, `gradcam.py` | Legacy prerequisite workflow retained for provenance; it generates most prerequisite artifacts but does not publish the complete prerequisite receipt or the revised strict results by itself. |
 | `aggregate_results/` | Completed, de-identified aggregate results used for the revision. |
 | `figures/` | Publication figure exports in PNG and PDF; all files are hash-bound to the visual-review sign-off. |
 | `EXTRACTION_RULES.md` | English reference for the Chinese-language class folders and the archive parsing, quality-control and masking rules. |
@@ -81,39 +85,60 @@ the deterministic rules that turn the archive layout into analysis units.
 ```bash
 python -m pip install -r requirements.txt
 
-# On the controlled host, with the image archive mounted:
-export SR_WORKSPACE=/path/to/workspace   # archive root; see scripts/config.py
-export SR_PYTHON=/path/to/python         # interpreter used by run_all.sh
-bash scripts/strict_oof/run_all.sh       # sole revised-analysis entry
+# On the controlled host, after restoring and validating the legacy prerequisite snapshot:
+export SR_DATA_ROOT=/path/to/restricted/archive
+export SR_EXP_DIR="$PWD/scripts"        # controlled experiment root
+export SR_PYTHON=/path/to/python
+(cd scripts && "$SR_PYTHON" -m strict_oof.orchestrator --dry-run)
+# Inspect preflight_ready/preflight_blockers; this command never starts training.
+bash scripts/strict_oof/run_all.sh        # strict continuation, not raw-data bootstrap
 ```
 
-`scripts/strict_oof/run_all.sh` starts the frozen strict orchestrator. Within the original
+`scripts/strict_oof/run_all.sh` is the frozen strict-continuation launcher, not a raw-data
+bootstrap. It requires a validated legacy prerequisite snapshot containing the restricted
+patient-level manifest/split and cache, legacy aggregate analysis and ablation inputs, and
+the machine-verifiable core-validation markers. Those private/run-control artifacts are
+withheld from this public repository. Within the original
 Train partition it creates patient-grouped five-fold out-of-fold (OOF) predictions, using
 only an inner patient-grouped validation split for early stopping. Soft-voting weights
 and the primary logistic-regression stacker are fitted on the complete Train OOF
 predictions at TTA8. The independent Meta-Cal partition then selects between the two
-pre-specified fusion candidates, fits the global temperature and selects the referral
-threshold. The held-out Test partition is used only after these choices are frozen. The
-same workflow evaluates all nine ablation arms at TTA1 and performs deep artifact and
+pre-specified fusion candidates and fits the global temperature. The prespecified referral
+rule is assessed on Meta-Cal; no threshold in {0.5, ..., 0.9} reaches autonomous accuracy
+0.90, so no operating threshold is selected. Only after these choices are frozen is the
+held-out Test partition used in terminal analysis. The same
+workflow evaluates all nine ablation arms at TTA1 and performs deep artifact and
 lineage validation before publishing its ready pointer.
 
 The parent-level `scripts/run_all.sh` and its associated training, prediction and fusion
-modules are a superseded legacy implementation. They remain inspectable for provenance,
-but running them does not reproduce the revised analysis.
+modules generated most of the legacy prerequisite snapshot. They remain inspectable for
+provenance, but they neither publish the complete prerequisite validation receipt nor
+reproduce the revised strict analysis by themselves.
 
 The pipeline requires the controlled host and the image archive; it cannot be run against
 public data. The scripts are included for inspection and audit, and the aggregate outputs
 they produce are what this repository publishes.
 
 The scientific scripts are synchronised from the validated active workflow. Host-only
-defaults are replaced by `SR_WORKSPACE`, `SR_EXP_DIR`, `SR_DATA_ROOT` and `SR_PYTHON`;
-the preparation gate rejects private absolute paths and does not alter numeric settings.
+defaults are replaced by `SR_WORKSPACE`, `SR_EXP_DIR`, `SR_DATA_ROOT` and `SR_PYTHON`.
+One release-only protocol descriptor changes `referral-threshold fitting` to the accurate
+non-numeric wording `prespecified referral-rule assessment`; no numeric setting changes.
+Every changed source byte, its controlled and public SHA-256, and its classification are
+recorded in `RELEASE_TRANSFORMATIONS.json`; the executed source tree remains bound in the
+controlled strict contract.
 
-Random seed 42 is fixed throughout: split construction, sampler, augmentation and
-bootstrap resampling. Software versions are pinned in `requirements.txt`; the analysis
-environment used Python 3.13.9, PyTorch 2.10.0+cu130, timm 1.0.26, NumPy 2.4.2,
-SciPy 1.17.1, scikit-learn 1.8.0, scikit-image 0.26.0, Pillow 12.1.1, LPIPS 0.1.4 and
-matplotlib 3.10.8, on one NVIDIA GB10 (121 GB, CUDA 13.0).
+The partition uses base seed 42. Training seeds are deterministic offsets by model,
+fold, stage and ablation arm; analysis resampling uses separately recorded derived
+seeds. Every run records the seed that produced it.
+
+Software versions are pinned in `requirements.txt`. The controlled runs used Python
+3.13.9, PyTorch 2.10.0+cu130, timm 1.0.26, NumPy 2.4.2, SciPy 1.17.1,
+scikit-learn 1.8.0, scikit-image 0.26.0, LPIPS 0.1.4 and matplotlib 3.10.8 on one
+NVIDIA GB10 (121 GB, CUDA 13.0). The imported `PIL` module reported 12.1.1, whereas
+installed-distribution metadata recorded Pillow 12.2.0; that mismatch is retained in
+the audit records. The clean release pin remains Pillow 12.1.1 to match the imported
+runtime implementation, and every new run must freeze a fresh, internally consistent
+environment. The cache-byte audit passed 330/330 comparisons with zero mismatch.
 
 ## Reported dataset composition
 
@@ -124,7 +149,7 @@ matplotlib 3.10.8, on one NVIDIA GB10 (121 GB, CUDA 13.0).
 | Images after quality control | 60,509 (3 unreadable or truncated files excluded) |
 | Split unit | Person (`PT` prefix); repeat biopsies of one person stay together |
 | Train / meta-calibration / test | 5,940 / 661 / 1,649 patients |
-| Class imbalance | 12.5:1 at image level, 14.3:1 at patient level (IgAN vs FSGS) |
+| Class imbalance | 12.5:1 at image level (IgAN vs FSGS), 14.3:1 at patient level (IgAN vs MPGN) |
 | Persons with more than one biopsy | 55, of which 39 carry more than one class label |
 | Image-fidelity audit | Stage-wise resize-only, resize-plus-mask and actual-cache results are in `aggregate_results/image_quality.json` |
 | Deliberately masked area | Bottom 28/384 rows (7.29%); a shortcut-risk mitigation, not proof that all metadata are absent |

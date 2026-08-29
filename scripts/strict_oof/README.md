@@ -14,7 +14,8 @@
   epoch 重训，不早停；scheduler 仍按 40 epoch 周期计算。
 - final backbone 产生 Meta-Cal/Test TTA16。投票权重与 LR meta-learner
   只在完整 Train OOF 拟合；预注册的 voting_tta8 vs stack_lr_tta8
-  只在独立 Meta-Cal 选择。温度与转诊阈值也只在 Meta-Cal 拟合。
+  只在独立 Meta-Cal 选择。温度只在 Meta-Cal 拟合；预设转诊规则也只在
+  Meta-Cal 评估。本次阈值网格无一达到自主准确率 0.90，因此未选择运行阈值。
   Test 标签只用于终局评估。
 - 新增 CB-only、MixUp-only、CutMix-only 三个单独消融臂，与旧 6 臂统一为
   9 臂 schema。
@@ -30,24 +31,39 @@
 运行期 checkpoint、marker 与逐 run 日志仅用于受控主机上的恢复和验收，不属于
 公开包。公开包仅提供代码、经隐私门控的聚合结果和出版图。
 
-## 只读预检（不启动训练）
+## 训练免启动的计划检查
+
+从公开仓库根目录运行：
 
 ```bash
-python -m strict_oof.orchestrator --dry-run
+(cd scripts && "${SR_PYTHON:-python}" -m strict_oof.orchestrator --dry-run)
 ```
 
-## 唯一主复现入口
+该命令不启动训练，但导入配置时可能在 `SR_EXP_DIR` 下创建空目录。退出码 0 只表示
+计划可列出；必须同时阅读 `preflight_ready` 与 `preflight_blockers`。在严格链自己的
+image-quality、runtime preflight 和 cache inventory 尚未生成前，
+`preflight_ready=false` 属于预期状态，不能被写成完整复现已就绪。
 
-在公开仓库根目录运行：
+## 受控前置快照与严格接续入口
+
+`strict_oof/run_all.sh` 不是从原始影像启动的单命令端到端流程。它是
+**validated legacy prerequisite snapshot 之后唯一的严格接续编排入口**。前置快照
+必须已经包含患者级 manifest/split、60,509 张 JPEG 缓存及 cache report、旧主链
+`analysis.json`、`core_validation.json`、`ALL.done`/`core_validation.done`、消融骨干、
+旧六臂消融结果与训练摘要，以及 frozen baseline 和 I/O profiler 结果。含患者键、
+路径、marker 与 checkpoint 的前置制品受限保存，不进入公开仓库。
+
+在受控主机先用 `validate_core_results.py` 复核前置快照；确认机器报告为 PASS 后，
+再从公开仓库根目录运行：
 
 ```bash
 bash scripts/strict_oof/run_all.sh
 ```
 
-这是修订后分析的 sole main reproduction entry。父目录中的 legacy
-`scripts/run_all.sh` 及其旧训练、推理与融合模块已被 superseded，仅为来源追溯
-和兼容性保留，不得用于复现修订后结果。严格入口会使用 marker 和 checkpoint
-进行有界恢复；调度方式由运行环境选择，不能同时启动多个编排器。
+该入口会使用 marker 和 checkpoint 有界恢复，并执行 94 步严格接续链。父目录
+`scripts/run_all.sh` 是生成前置快照的 legacy GPU 工作流；它本身不能复现修订后
+严格结果，也不能替代前置快照的核心验收收据。调度方式由运行环境选择，禁止并发
+启动多个编排器。
 
 ## 切换门
 

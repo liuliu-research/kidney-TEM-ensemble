@@ -54,5 +54,12 @@
   "terminal_epoch_rule": "median_of_five_outer_best_epochs",
   "terminal_fixed_epoch": 35,
   "test_labels_used_for_training_or_selection": false,
-  "total_seconds": 149113.99964785576
+  "total_seconds": 149113.99964785576,
+  "public_release_projection": {
+    "schema_version": 1,
+    "source_file": "train_log_efficientnet_b4.json",
+    "source_sha256": "cae934c2682183cafb567cf16d9d87615bbb689f5c2e85363f12dc3cf4b2875f",
+    "privacy_transform": "Raw per-epoch history and high-frequency GPU-utilisation samples were removed; aggregate run metadata and summaries were retained.",
+    "removed_fields": {}
+  }
 }

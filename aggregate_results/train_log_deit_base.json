@@ -54,5 +54,12 @@
   "terminal_epoch_rule": "median_of_five_outer_best_epochs",
   "terminal_fixed_epoch": 15,
   "test_labels_used_for_training_or_selection": false,
-  "total_seconds": 69853.23551344872
+  "total_seconds": 69853.23551344872,
+  "public_release_projection": {
+    "schema_version": 1,
+    "source_file": "train_log_deit_base.json",
+    "source_sha256": "4576a5e1c6802c0a77e167a4b3c505c1bacd17f733733e9da1e46ea69bc3b8a0",
+    "privacy_transform": "Raw per-epoch history and high-frequency GPU-utilisation samples were removed; aggregate run metadata and summaries were retained.",
+    "removed_fields": {}
+  }
 }
