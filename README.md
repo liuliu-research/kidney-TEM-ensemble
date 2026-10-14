@@ -7,6 +7,17 @@ Analysis code and de-identified aggregate results for:
 > kidney disease on transmission electron microscopy.* Submitted to **Scientific
 > Reports** (major revision).
 
+## Permanent archive
+
+Version **v1.0.0** was released and archived on 14 October 2026:
+[Zenodo DOI 10.5281/zenodo.23354305](https://doi.org/10.5281/zenodo.23354305),
+[GitHub Release](https://github.com/liuliu-research/kidney-TEM-ensemble/releases/tag/v1.0.0).
+The archive preserves commit `171c2f9c2f5de6fd24902f17abefa027e34b5b56`.
+All 109 archived files were downloaded and verified against that commit. Its historical
+repository-state metadata describes the status at snapshot creation; this live README,
+the citation metadata and the Zenodo record document the subsequently completed archive.
+Post-archive metadata updates do not change the frozen code, aggregate results or figures.
+
 Locked dataset: 60,512 transmission electron microscopy (TEM) images from 8,306 biopsies
 in 8,250 patients across 11 glomerular disease classes, held at a single tertiary
 ultrastructural pathology service. Three quality-control failures were excluded, leaving

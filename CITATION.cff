@@ -2,6 +2,10 @@ cff-version: 1.2.0
 message: If you use this software or the aggregate data, please cite the accompanying article.
 title: A heterogeneous deep-learning ensemble for assistive 11-class classification of kidney disease on transmission electron microscopy
 type: software
+version: v1.0.0
+date-released: '2026-10-14'
+doi: 10.5281/zenodo.23354305
+url: https://github.com/liuliu-research/kidney-TEM-ensemble
 license: MIT
 authors:
   - family-names: Liu

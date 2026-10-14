@@ -4,8 +4,12 @@
   "local_directory_name_reason": "This project-local working checkout predates the shared repository convention; the canonical public repository remains kidney-TEM-ensemble.",
   "review_identity": "single_anonymized",
   "artifact_access": "public",
-  "lifecycle_state": "remote_prerelease",
-  "formally_released": false,
-  "release_date": null,
-  "version": null
+  "lifecycle_state": "archived_doi",
+  "formally_released": true,
+  "release_date": "2026-10-14",
+  "version": "v1.0.0",
+  "doi": "10.5281/zenodo.23354305",
+  "archive_source_commit": "171c2f9c2f5de6fd24902f17abefa027e34b5b56",
+  "archive_url": "https://zenodo.org/records/23354305",
+  "release_url": "https://github.com/liuliu-research/kidney-TEM-ensemble/releases/tag/v1.0.0"
 }
